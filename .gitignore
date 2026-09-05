@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+*.xlsx
+.DS_Store
+test_samples/
+web/node_modules/
+web/dist/
+.claude/
+.codex/
+.impeccable/
