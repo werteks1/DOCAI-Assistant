@@ -492,6 +492,67 @@ class ExcelManager:
         return duplicates
 
     @staticmethod
+    def _digits_only(value: Any) -> str:
+        return "".join(c for c in str(value or "") if c.isdigit())
+
+    @staticmethod
+    def _record_duplicate_keys(record: Dict[str, Any]) -> Tuple[str, str, str]:
+        """Ключи для поиска дублей по записи: (snils_цифры, fio_норм, дата_рождения_цифры)."""
+        snils = ""
+        fio = ""
+        birth = ""
+        for key, value in record.items():
+            norm = ExcelManager._normalize_header(key)
+            if "снилс" in norm:
+                snils = ExcelManager._digits_only(value)
+            elif any(w in norm for w in ["родител", "заявител", "представител"]):
+                continue
+            elif "рождени" in norm:
+                birth = ExcelManager._digits_only(value)
+            elif any(w in norm for w in ["фио", "ученик", "ребенок", "учащ", "поступающ"]) or norm == "фио":
+                fio = ExcelManager._normalize_header(str(value))
+        return snils, fio, birth
+
+    @staticmethod
+    def find_in_memory_duplicates(
+        records: List[Dict[str, Any]],
+        filenames: Optional[List[str]] = None,
+    ) -> List[List[Dict[str, Any]]]:
+        """Ищет дубли в памяти внутри одной пачки результатов (без файла на диске).
+
+        Возвращает список, выровненный по `records`: для каждой записи — список
+        совпадений с более ранними записями пачки:
+        [{index, duplicate_of, reason}, ...]. Первая запись группы остаётся оригиналом.
+        """
+        total = len(records)
+        filenames = filenames or ["" for _ in range(total)]
+        keys = [ExcelManager._record_duplicate_keys(record) for record in records]
+
+        def _format_snils(digits: str) -> str:
+            return f"{digits[:3]}-{digits[3:6]}-{digits[6:9]} {digits[9:]}"
+
+        result: List[List[Dict[str, Any]]] = [[] for _ in range(total)]
+        for current in range(total):
+            cur_snils, cur_fio, cur_birth = keys[current]
+            for earlier in range(current):
+                prev_snils, prev_fio, prev_birth = keys[earlier]
+                reason = None
+                if cur_snils and len(cur_snils) == 11 and cur_snils == prev_snils:
+                    reason = f"Совпадение по СНИЛС ({_format_snils(cur_snils)})"
+                elif cur_fio and prev_fio and cur_fio == prev_fio:
+                    if cur_birth and prev_birth and cur_birth == prev_birth:
+                        reason = "Совпадение по ФИО и дате рождения"
+                    elif not cur_birth or not prev_birth:
+                        reason = "Совпадение по ФИО"
+                if reason:
+                    result[current].append({
+                        "index": earlier,
+                        "duplicate_of": filenames[earlier],
+                        "reason": reason,
+                    })
+        return result
+
+    @staticmethod
     def get_analytics_summary(file_path: Union[str, Path]) -> Dict[str, Any]:
         """
         Формирует сводные аналитические данные для дашборда:

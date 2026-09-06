@@ -19,33 +19,24 @@ import requests
 import ollama
 
 import config
+import template_config
+from template_config import DEFAULT_TEMPLATE
 from document_loader import DocumentLoader
 from field_locator import FieldLocator, ALIASES
 from reference_dictionary import ReferenceDictionary
 from validator import DataValidator
+from logging_utils import get_logger
+
+logger = get_logger("extractor")
 
 
 class DocumentExtractor:
-    # Резервные полосы для стандартного бланка, когда PaddleOCR не установлен
-    FALLBACK_FIELD_RATIOS = {
-        "Дата подачи заявления": (0.23, 0.30),
-        "ФИО поступающего ученика": (0.29, 0.35),
-        "Дата рождения ребенка": (0.35, 0.41),
-        "Класс / профиль обучения": (0.40, 0.47),
-        "ФИО родителя / заявителя": (0.46, 0.52),
-        "Паспортные данные": (0.51, 0.58),
-        "Адрес регистрации / проживания": (0.57, 0.64),
-        "Контактный телефон": (0.63, 0.70),
-        "СНИЛС поступающего": (0.69, 0.76),
-        "Особые отметки / льготы": (0.75, 0.83),
-    }
-    SIGNATURE_DATE_RATIO = (0.80, 0.90)
-    FALLBACK_X_RATIOS = {
-        "Дата подачи заявления": (0.08, 0.58),
-        "Паспортные данные": (0.08, 0.96),
-        "СНИЛС поступающего": (0.08, 0.78),
-        "Контактный телефон": (0.08, 0.72),
-    }
+    # Резервные полосы для стандартного бланка, когда PaddleOCR не установлен.
+    # Единый источник значений — DEFAULT_TEMPLATE (template_config.py); класс
+    # использует активный шаблон из templates.json через self._fallback_*.
+    FALLBACK_FIELD_RATIOS = {k: tuple(v) for k, v in DEFAULT_TEMPLATE["fallback_y"].items()}
+    SIGNATURE_DATE_RATIO = tuple(DEFAULT_TEMPLATE["signature_date_y"])
+    FALLBACK_X_RATIOS = {k: tuple(v) for k, v in DEFAULT_TEMPLATE["fallback_x"].items()}
 
     def __init__(self, host: str = config.OLLAMA_HOST, model_name: str = config.DEFAULT_MODEL):
         self.host = self._clean_host(host)
@@ -54,6 +45,11 @@ class DocumentExtractor:
         self.client = ollama.Client(host=self.host, timeout=None)
         self._session = requests.Session()
         self.is_cancelled: bool = False
+        # Геометрия активного шаблона (templates.json → template_config).
+        self.template = template_config.load_template()
+        self._fallback_y: dict = self.template["fallback_y"]
+        self._fallback_x: dict = self.template["fallback_x"]
+        self._signature_date_y = self.template["signature_date_y"]
         self.field_locator = FieldLocator(detector_name=config.PADDLE_DETECTOR)
         self.reference_dictionary = ReferenceDictionary()
         try:
@@ -282,9 +278,9 @@ class DocumentExtractor:
             if region is None and pil_image is not None:
                 # Не отправляем целую страницу: используем строку бланка как
                 # безопасный fallback, даже если PaddleOCR не нашёл метку.
-                ratio = self.FALLBACK_FIELD_RATIOS.get(field)
+                ratio = self._fallback_y.get(field)
                 if ratio:
-                    x_ratio = self.FALLBACK_X_RATIOS.get(field, (0.03, 0.97))
+                    x_ratio = self._fallback_x.get(field, (0.03, 0.97))
                     crop = DocumentLoader.get_bbox_crop(
                         pil_image,
                         (int(pil_image.width * x_ratio[0]),
@@ -309,11 +305,11 @@ class DocumentExtractor:
             value = result.get("value")
             # Дата внизу заявления обычно написана крупнее и служит вторым
             # независимым наблюдением для исправления путаницы 4/7.
-            if field == "Дата подачи заявления" and pil_image is not None:
+            if field == "Дата подачи заявления" and pil_image is not None and self._signature_date_y:
                 # Берём только левую часть нижней даты; подпись справа не должна
                 # попадать в визуальный контекст и сбивать распознавание цифр.
-                bx1, by1 = int(pil_image.width * 0.08), int(pil_image.height * self.SIGNATURE_DATE_RATIO[0])
-                bx2, by2 = int(pil_image.width * 0.48), int(pil_image.height * self.SIGNATURE_DATE_RATIO[1])
+                bx1, by1 = int(pil_image.width * 0.08), int(pil_image.height * self._signature_date_y[0])
+                bx2, by2 = int(pil_image.width * 0.48), int(pil_image.height * self._signature_date_y[1])
                 bottom_crop = DocumentLoader.get_bbox_crop(pil_image, (bx1, by1, bx2, by2), 3.0)
                 bottom_prompt = (
                     "Прочитай только рукописную дату слева от подписи внизу документа. "
@@ -780,7 +776,7 @@ class DocumentExtractor:
         if repaired:
             return self._postprocess_data(repaired)
 
-        print("[Extractor] Не удалось найти валидный JSON в ответе модели")
+        logger.warning("Не удалось найти валидный JSON в ответе модели")
         return {"error": "Не удалось распарсить ответ модели"}
 
     def _postprocess_data(self, data: Dict[str, Any]) -> Dict[str, Any]:

@@ -48,3 +48,19 @@ USE_VALIDATOR = True
 USE_REFERENCE_DICTIONARY = True
 PADDLE_DETECTOR = "PP-OCRv6_medium_det"
 PADDLE_DETECTOR_OPTIONS = ["PP-OCRv6_medium_det", "PP-OCRv6_small_det"]
+
+# --- Логирование (PII-safe) -----------------------------------------
+def get_log_level() -> str:
+    """Уровень лога из DOCIA_LOG_LEVEL (имя уровня logging, например INFO)."""
+    return os.getenv("DOCIA_LOG_LEVEL", "INFO").strip() or "INFO"
+
+
+def get_log_file() -> str:
+    """Путь файла лога из DOCIA_LOG_FILE. Пусто — только stderr."""
+    return os.getenv("DOCIA_LOG_FILE", "").strip()
+
+
+# --- Шаблон бланка ---------------------------------------------------
+def get_template_name() -> str:
+    """Имя активного шаблона бланка из DOCIA_TEMPLATE (пусто = по умолчанию)."""
+    return os.getenv("DOCIA_TEMPLATE", "").strip()

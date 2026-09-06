@@ -25,14 +25,28 @@ class BatchExtractRequest(BaseModel):
     model: Optional[str] = Field(default=None, max_length=200)
 
 
-class BatchItem(BaseModel):
+class BatchJobStarted(BaseModel):
+    job_id: str
+    total: int
+
+
+class BatchJobItem(BaseModel):
     filename: str
-    data: Optional[Dict[str, Any]] = None
+    status: Literal["pending", "processing", "done", "error"] = "pending"
+    message: str = ""
     error: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None
 
 
-class BatchExtractResponse(BaseModel):
-    results: list[BatchItem]
+class BatchJobState(BaseModel):
+    job_id: str
+    status: Literal["running", "done", "error", "cancelled"] = "running"
+    cancelled: bool = False
+    total: int = 0
+    completed: int = 0
+    current_message: str = ""
+    error: Optional[str] = None
+    items: list[BatchJobItem] = Field(default_factory=list)
 
 
 class ExportRequest(BaseModel):

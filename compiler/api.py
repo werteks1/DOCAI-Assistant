@@ -1,16 +1,21 @@
+import uuid
+
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-import config
+from .jobs import JobBusy, JobStore, exclusive_extraction, friendly_error
 from .models import (
-    BatchExtractRequest, BatchExtractResponse, BatchItem, ConnectRequest,
-    CorrectionRequest, ExportRequest, ExtractRequest, ExtractResponse, HealthResponse, ModelRequest,
+    BatchExtractRequest, BatchJobItem, BatchJobStarted, BatchJobState,
+    ConnectRequest, CorrectionRequest, ExportRequest, ExtractRequest,
+    ExtractResponse, HealthResponse, ModelRequest,
 )
 from excel_manager import ExcelManager
+from logging_utils import get_logger, reset_correlation, set_correlation
 from .pipeline import CompilerPipeline
 
+logger = get_logger("api")
 
-app = FastAPI(title="DocAI Compiler", version="1.0.0")
+app = FastAPI(title="DocAI Compiler", version="1.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -21,19 +26,14 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 pipeline = CompilerPipeline()
+job_store = JobStore()
+
+# Множество статусов, при которых джоб завершён и можно отдавать data файлов.
+_FINISHED_STATUSES = ("done", "error", "cancelled")
 
 
-def _friendly_error(exc: Exception) -> str:
-    """Преобразует сетевые ошибки Ollama в понятное сообщение для Web UI."""
-    raw = str(exc)
-    lower = raw.lower()
-    if "61" in raw or "connection refused" in lower or "connecterror" in lower:
-        return (
-            "Сервер ИИ отказал в подключении (ошибка 61). "
-            "Проверьте, что Ollama/LM Studio запущен, IP и порт указаны верно, "
-            "а доступ к серверу разрешён в локальной сети."
-        )
-    return raw or "Неизвестная ошибка компилятора"
+def _http_409_job_busy(exc: JobBusy) -> HTTPException:
+    return HTTPException(status_code=409, detail=str(exc))
 
 
 @app.get("/api/health", response_model=HealthResponse)
@@ -53,7 +53,7 @@ def connect(request: ConnectRequest) -> dict[str, object]:
     try:
         return pipeline.connect(request.host)
     except Exception as exc:
-        raise HTTPException(status_code=422, detail=_friendly_error(exc)) from exc
+        raise HTTPException(status_code=422, detail=friendly_error(exc)) from exc
 
 
 @app.post("/api/model")
@@ -66,37 +66,72 @@ def choose_model(request: ModelRequest) -> dict[str, str]:
 
 @app.post("/api/extract", response_model=ExtractResponse)
 def extract(request: ExtractRequest) -> ExtractResponse:
+    token = set_correlation(uuid.uuid4().hex[:12])
     try:
-        data = pipeline.extract(
-            request.image_base64,
-            request.target_columns,
-            request.filename,
-            request.ocr_priority,
-            request.detector,
-            request.model,
-        )
-        return ExtractResponse(data=data)
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=_friendly_error(exc)) from exc
-
-
-@app.post("/api/batch", response_model=BatchExtractResponse)
-def batch_extract(request: BatchExtractRequest) -> BatchExtractResponse:
-    results: list[BatchItem] = []
-    for document in request.documents:
-        try:
+        with exclusive_extraction():
             data = pipeline.extract(
-                document.image_base64,
+                request.image_base64,
                 request.target_columns,
-                document.filename,
+                request.filename,
                 request.ocr_priority,
                 request.detector,
                 request.model,
             )
-            results.append(BatchItem(filename=document.filename, data=data))
-        except Exception as exc:
-            results.append(BatchItem(filename=document.filename, error=_friendly_error(exc)))
-    return BatchExtractResponse(results=results)
+        return ExtractResponse(data=data)
+    except JobBusy as exc:
+        raise _http_409_job_busy(exc) from exc
+    except Exception as exc:
+        logger.warning("extract: error=%s", type(exc).__name__)
+        raise HTTPException(status_code=422, detail=friendly_error(exc)) from exc
+    finally:
+        reset_correlation(token)
+
+
+@app.post("/api/batch", status_code=202, response_model=BatchJobStarted)
+def batch_start(request: BatchExtractRequest) -> BatchJobStarted:
+    try:
+        job_id = job_store.start(request, pipeline)
+    except JobBusy as exc:
+        raise _http_409_job_busy(exc) from exc
+    return BatchJobStarted(job_id=job_id, total=len(request.documents))
+
+
+@app.get("/api/batch/{job_id}", response_model=BatchJobState)
+def batch_status(job_id: str) -> BatchJobState:
+    job = job_store.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Джоб не найден")
+    finished = job.status in _FINISHED_STATUSES
+    return BatchJobState(
+        job_id=job.job_id,
+        status=job.status,
+        cancelled=job.cancelled,
+        total=job.total,
+        completed=job.completed,
+        current_message=job.current_message,
+        error=job.error,
+        items=[
+            BatchJobItem(
+                filename=item.filename,
+                status=item.status,
+                message=item.message,
+                error=item.error,
+                data=item.data if finished else None,
+            )
+            for item in job.items
+        ],
+    )
+
+
+@app.post("/api/batch/{job_id}/cancel")
+def batch_cancel(job_id: str) -> dict[str, str]:
+    job = job_store.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Джоб не найден")
+    if job.status not in ("running",):
+        return {"status": "finished"}
+    cancelled = job_store.cancel(job_id)
+    return {"status": "cancelling" if cancelled else "finished"}
 
 
 @app.post("/api/export/excel")

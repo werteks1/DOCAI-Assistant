@@ -120,3 +120,9 @@ h2 { font-size: 21px; }
 .review-field b { padding: 3px 6px; color: #241b0b; background: #f4c861; border-radius: 4px; font-size: 9px; letter-spacing: .03em; text-transform: uppercase; }
 .review-actions { margin-top: 20px; padding-top: 16px; border-top: 1px solid #293b56; }
 @media (max-width: 720px) { .review-modal { padding: 20px 16px; } .review-layout { grid-template-columns: 1fr; min-height: 0; } .review-files { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); max-height: 120px; } .review-actions { flex-direction: column-reverse; } .review-actions button { width: 100%; } .review-callout { align-items: flex-start; flex-direction: column; } .review-callout button { width: 100%; } }
+.cancel-batch { display: block; margin: 16px auto 0; }
+.batch-file { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.dup-badge { padding: 2px 9px; color: #2b2000; background: #f4c861; border-radius: 99px; font-size: 10px; font-weight: 800; letter-spacing: .02em; }
+.duplicate-banner { margin: 0 0 12px; padding: 11px 13px; border: 1px solid rgba(255, 176, 90, .45); border-radius: 10px; background: rgba(150, 60, 20, .20); color: #ffd9a8; font-size: 12px; line-height: 1.5; }
+.duplicate-banner strong { display: block; color: #ffb47a; margin-bottom: 3px; }
+.duplicate-banner small { display: block; margin-top: 4px; color: #c99f74; font-size: 11px; }

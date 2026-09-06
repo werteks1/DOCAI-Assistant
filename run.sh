@@ -7,5 +7,7 @@ if [ -x "venv/bin/python3" ]; then PYTHON_BIN="venv/bin/python3"; fi
 COMPILER_PID=$!
 trap 'kill "$COMPILER_PID" 2>/dev/null || true' EXIT INT TERM
 cd web
-if [ ! -d node_modules ]; then npm install; fi
+if [ ! -d node_modules ]; then
+  if [ -f package-lock.json ]; then npm ci; else npm install; fi
+fi
 npm run dev -- --host 127.0.0.1

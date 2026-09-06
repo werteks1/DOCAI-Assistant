@@ -1,10 +1,14 @@
-ollama>=0.4.0
-openpyxl>=3.1.2
-pandas>=2.2.0
-pillow>=10.3.0
-pymupdf>=1.24.0
-pydantic>=2.7.0
-requests>=2.31.0
-numpy>=1.26
-paddleocr>=3.0.0
-# paddlepaddle>=3.0.0 (установить сборку, совместимую с ОС)
+# Прямые зависимости веб-пути DocAI Assistant — версии зафиксированы точно (==),
+# чтобы окружение собиралось одинаково на разных машинах.
+# Снято с рабочего окружения: Python 3.14.7, 2026-09-06.
+#
+# OCR-детектор PP-OCRv6 (PaddlePaddle/PaddleOCR) НЕ входит в этот файл:
+# платформенные сборки ставятся отдельно — см. requirements-ocr.txt.
+ollama==0.6.2
+openpyxl==3.1.5
+pandas==3.0.5
+pillow==12.3.0
+pymupdf==1.28.2
+pydantic==2.13.5
+requests==2.34.2
+numpy==2.3.5

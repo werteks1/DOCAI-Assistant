@@ -1,3 +1,4 @@
+# Веб-путь (React → FastAPI): точные пины поверх requirements.txt.
 -r requirements.txt
 fastapi==0.115.6
 uvicorn[standard]==0.34.0

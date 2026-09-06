@@ -10,7 +10,12 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass
 
-ALIASES = ["Дата подачи заявления", "ФИО поступающего ученика", "Дата рождения ребенка", "Класс / профиль обучения", "ФИО родителя / заявителя", "Паспортные данные", "Адрес регистрации / проживания", "Контактный телефон", "СНИЛС поступающего", "Особые отметки / льготы"]
+import template_config
+from template_config import DEFAULT_TEMPLATE
+
+# Поля стандартного шаблона используются как колонки по умолчанию.
+ALIASES = list(DEFAULT_TEMPLATE["fields"])
+
 
 @dataclass
 class Region:
@@ -19,22 +24,19 @@ class Region:
 
 
 class FieldLocator:
-    LABELS = {
-        "Дата подачи заявления": ("дата подачи", "дата подачи заявления"),
-        "ФИО поступающего ученика": ("фио поступающего", "фамилия, имя, отчество поступающего", "поступающего (ребенка)"),
-        "Дата рождения ребенка": ("дата и место рождения", "дата рождения ребенка", "дата рождения"),
-        "Класс / профиль обучения": ("желаемый класс", "профиль обучения", "класс"),
-        "ФИО родителя / заявителя": ("фио родителя", "фио заявителя", "родителя (законного представителя)"),
-        "Паспортные данные": ("паспортные данные", "паспорт"),
-        "Адрес регистрации / проживания": ("адрес регистрации", "фактического проживания", "адрес проживания"),
-        "Контактный телефон": ("контактный номер телефона", "контактный телефон", "телефон для связи"),
-        "СНИЛС поступающего": ("страховой номер", "снилс", "лицевого счета"),
-        "Особые отметки / льготы": ("дополнительные сведения", "наличие льгот", "особые отметки"),
-    }
+    """Локализация рукописных значений относительно печатных меток шаблона.
 
-    def __init__(self, min_score: float = 0.25, detector_name: str = "PP-OCRv6_medium_det"):
+    PaddleOCR используется только как детектор геометрии. Распознавание значения
+    выполняет VLM, поскольку стандартный OCR не является надёжным для русского
+    рукописного текста.
+    """
+
+    def __init__(self, min_score: float = 0.25, detector_name: str = "PP-OCRv6_medium_det",
+                 template: Optional[str] = None):
         self.min_score = min_score
         self.detector_name = detector_name
+        # Метки полей активного шаблона (label_aliases из templates.json).
+        self.labels: Dict[str, Tuple[str, ...]] = template_config.load_template(template)["label_aliases"]
         self._ocr = None
         self._ocr_class = None
         self.error = ""
@@ -97,7 +99,7 @@ class FieldLocator:
                         rows.append((str(text).strip(), box, float(score)))
             rows.sort(key=lambda x: (x[1][1], x[1][0]))
             found: Dict[str, Region] = {}
-            for field, aliases in self.LABELS.items():
+            for field, aliases in self.labels.items():
                 for text, label_box, _ in rows:
                     norm = re.sub(r"[^а-яё0-9 ]", " ", text.lower())
                     if not any(alias in norm for alias in aliases):
