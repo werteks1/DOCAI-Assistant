@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>DocAI — Настройки</title>
+<title>DocAI — Консоль администратора</title>
 <style>
   :root{
     --bg:#090d16; --card:rgba(20,28,42,.9); --line:#293750; --line2:#3b5071;
@@ -29,8 +29,12 @@
   .sub{margin:7px 0 0;color:var(--muted);font-size:13px}
   .head-link{color:var(--muted);font-size:12px;text-decoration:none;white-space:nowrap}
   .head-link:hover{color:#c6d7ff}
+  .who{display:flex;flex-wrap:wrap;align-items:center;gap:10px;justify-content:flex-end}
+  .user-chip{display:inline-flex;align-items:center;padding:8px 13px;border:1px solid var(--line2);border-radius:99px;background:#1a2942;color:#edf3ff;font-size:12px;font-weight:700;white-space:nowrap}
+  .link-btn{background:none;border:0;color:#b9c9e4;font-size:12px;cursor:pointer;text-decoration:underline;padding:6px 4px}
+  .link-btn:hover{color:#fff}
   .statusbar{
-    display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin-bottom:18px;
+    display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin-bottom:16px;
     padding:12px 15px;border:1px solid var(--line);border-radius:14px;
     background:rgba(13,20,33,.8);font-size:12px;color:var(--faint);
   }
@@ -39,6 +43,12 @@
   .dot.bad{background:var(--bad)}
   .statusbar b{color:#d9e4fa;font-weight:700}
   .chip{padding:3px 9px;border:1px solid var(--line2);border-radius:99px;background:#151e2e;font-size:12px}
+  .tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+  .tabs button{
+    padding:9px 15px;color:#9fb2d0;background:rgba(13,20,33,.7);border:1px solid var(--line);
+    border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;
+  }
+  .tabs button.on{color:#fff;border-color:#648dff;background:linear-gradient(135deg,#3a63d6,#4c5ad6)}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   .card{padding:20px;border:1px solid var(--line);border-radius:18px;background:var(--card);box-shadow:0 18px 46px rgba(0,0,0,.16)}
   .card.wide{grid-column:1/-1}
@@ -82,104 +92,220 @@
   .kv{display:flex;flex-wrap:wrap;gap:4px 22px;color:var(--muted);font-size:12px}
   .kv b{color:#d9e4fa;font-weight:700}
   .save-info{margin-left:auto;color:#b9c9e4;font-size:12px}
-  .empty{color:#55647f;font-style:italic}
-  @media (max-width:760px){.grid{grid-template-columns:1fr}.card.wide{grid-column:auto}.slider-2col{grid-template-columns:1fr}}
+  .empty{color:#8798b6;font-style:italic}
+
+  /* --- экран входа / отказа --- */
+  .auth-card{
+    max-width:430px;margin:64px auto 0;padding:26px;text-align:left;
+    border:1px solid var(--line);border-radius:18px;background:var(--card);
+    box-shadow:0 24px 60px rgba(0,0,0,.25);
+  }
+  .auth-brand{color:#89a8ff;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px}
+  .auth-note{margin:8px 0 20px;color:var(--muted);font-size:13px;line-height:1.5}
+  .auth-label{display:block;margin:0 0 14px;color:var(--faint);font-size:12px;font-weight:700}
+  .auth-label input{display:block;width:100%;margin-top:6px}
+  .auth-error{margin:0 0 14px;padding:10px 12px;border:1px solid rgba(255,148,156,.5);border-radius:10px;background:rgba(255,148,156,.08);color:#ffb6bb;font-size:13px;line-height:1.45}
+  .auth-submit{width:100%;margin-top:4px}
+
+  /* --- пользователи и статистика --- */
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:12px}
+  .toolbar input,.toolbar select{width:auto}
+  .toolbar .grow{flex:1;min-width:150px}
+  .user-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--line)}
+  .user-name{color:#edf3ff;font-weight:800;font-size:13px;min-width:150px}
+  .user-name small{display:block;color:var(--muted);font-weight:600;font-size:12px;margin-top:2px}
+  .role-chip{padding:2px 9px;border-radius:99px;font-size:12px;font-weight:800}
+  .role-chip.admin{color:#b9c9e4;background:#233a68;border:1px solid #3b5a94}
+  .role-chip.operator{color:#d9ecd7;background:#16342a;border:1px solid #2c5a48}
+  .flag-chip{padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700}
+  .flag-chip.warnc{color:#ffe1a0;background:#3a2f12;border:1px solid #6b5620}
+  .flag-chip.off{color:#a9b8d0;background:#232a38;border:1px solid #3b4559}
+  .row-actions{margin-left:auto;display:flex;flex-wrap:wrap;gap:6px}
+  .tiny-btn{border:1px solid var(--line2);border-radius:8px;padding:6px 11px;background:#1a2942;color:#cbd8ed;font-size:12px;font-weight:700;cursor:pointer}
+  .tiny-btn:hover{border-color:#6d98ff;color:#fff}
+  .tiny-btn.danger-btn{border-color:#5c3440;color:#ffb9c0;background:#2a1620}
+  .tiny-btn:disabled{opacity:.5;cursor:default}
+  table.tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+  .tbl th,.tbl td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+  .tbl th{color:var(--muted);font-weight:800;font-size:12px}
+  .tbl td{color:#cdd8ea}
+  .tbl .num{text-align:right;font-variant-numeric:tabular-nums}
+  .block-title{margin:22px 0 4px;font-size:13px;font-weight:800;color:#d9e4fa}
+  .recent-line{display:flex;flex-wrap:wrap;gap:6px 16px;padding:7px 4px;border-bottom:1px solid var(--line);font-size:12px;color:#cdd8ea}
+  .recent-line .ts{color:var(--muted);font-variant-numeric:tabular-nums}
+  .recent-line .act{color:#d9e4fa;font-weight:700}
+  .recent-line .ok-true{color:var(--ok)} .recent-line .ok-false{color:var(--bad)}
+  @media (max-width:760px){.grid{grid-template-columns:1fr}.card.wide{grid-column:auto}.slider-2col{grid-template-columns:1fr}.row-actions{margin-left:0}}
 </style>
 </head>
 <body>
 <div class="shell">
-  <header>
-    <div>
-      <div class="brand">DOCAI · НАСТРОЙКИ</div>
-      <h1>Куда отправлять запросы распознавания</h1>
-      <p class="sub">Отдельное окно управления: пресеты Ollama и LM Studio, любой OpenAI-совместимый сервер и параметры VLM. Настройки хранятся в <b>settings.json</b> у компилятора и в этом браузере.</p>
-    </div>
-    <a class="head-link" href="/docs" target="_blank" rel="noreferrer">API-документация (Swagger) →</a>
-  </header>
 
-  <div class="statusbar" id="statusbar">
-    <span id="conn"><span class="dot"></span>Статус…</span>
-    <span class="chip">Сервер: <b id="stHost">—</b></span>
-    <span class="chip">Тип: <b id="stBackend">—</b></span>
-    <span class="chip">Модель: <b id="stModel">—</b></span>
-    <span class="chip">PaddleOCR: <b id="stPaddle">—</b></span>
-    <span class="save-info" id="saveInfo"></span>
+  <!-- Экран входа / отказа (до проверки роли) -->
+  <div id="authView" hidden>
+    <div class="auth-card">
+      <form id="loginForm" hidden>
+        <div class="auth-brand">DOCAI · ВХОД</div>
+        <h1 style="margin:0">Консоль администратора</h1>
+        <p class="auth-note">Настройка сервера ИИ, учётные записи и статистика доступны только администратору.</p>
+        <label class="auth-label">Логин<input type="text" id="loginName" autocomplete="username" spellcheck="false"/></label>
+        <label class="auth-label">Пароль<input type="password" id="loginPass" autocomplete="current-password"/></label>
+        <div class="auth-error" id="loginErr" hidden></div>
+        <button type="submit" class="primary auth-submit" id="loginBtn">Войти</button>
+      </form>
+      <div id="deniedBox" hidden>
+        <div class="auth-brand">DOCAI · ДОСТУП ОГРАНИЧЕН</div>
+        <h1 style="margin:0">Только для администратора</h1>
+        <p class="auth-note">Ваша учётная запись не является администратором. Обработка документов выполняется в основном окне, а эта страница служит консолью администратора.</p>
+        <a class="secondary" style="text-decoration:none;display:inline-block" href="/">← В основное окно</a>
+      </div>
+      <div id="mustBox" hidden>
+        <div class="auth-brand">DOCAI · ПЕРВЫЙ ВХОД</div>
+        <h1 style="margin:0">Сначала смените пароль</h1>
+        <p class="auth-note">Для входа в консоль необходимо сменить временный пароль. Откройте основное окно — там появится форма смены пароля, после чего вернитесь сюда.</p>
+        <a class="secondary" style="text-decoration:none;display:inline-block" href="/">← Сменить пароль</a>
+      </div>
+      <div id="checkBox">
+        <p class="auth-note">Проверка сессии…</p>
+      </div>
+    </div>
   </div>
 
-  <div class="grid">
-    <section class="card">
-      <h2>Сервер ИИ</h2>
-      <p class="note">Запросы будут уходить на выбранный адрес. Принимаются только локальные адреса и частные сети школы (localhost, 10.x, 172.16–31.x, 192.168.x) — облачные сервисы по политике 152-ФЗ не подключаются.</p>
-
-      <div class="seg" id="seg">
-        <button type="button" data-prov="ollama">Ollama<small>порт 11434</small></button>
-        <button type="button" data-prov="lmstudio">LM Studio<small>порт 1234</small></button>
-        <button type="button" data-prov="openai">Другой сервер<small>OpenAI /v1</small></button>
+  <!-- Консоль администратора -->
+  <div id="consoleView" hidden>
+    <header>
+      <div>
+        <div class="brand">DOCAI · КОНСОЛЬ</div>
+        <h1>Настройки сервера ИИ, пользователи и статистика</h1>
+        <p class="sub">Куда уходит запрос распознавания, кто работает с документами и как часто используется система. Данные хранятся в <b>settings.json</b> и <b>docia.db</b> на этом компьютере.</p>
       </div>
-
-      <label class="lbl" for="host">Адрес сервера</label>
-      <input type="text" id="host" spellcheck="false" placeholder="http://127.0.0.1:1234"/>
-      <div class="hint">Без пути <code>/v1</code> — он добавляется автоматически. Пример: <code>http://192.168.0.19:1234</code></div>
-
-      <label class="lbl" for="apikey">API-ключ (только OpenAI-совместимые серверы; Ollama не требует)</label>
-      <div class="keyline">
-        <input type="password" id="apikey" spellcheck="false" autocomplete="off"/>
-        <button type="button" class="icon-btn" id="showKey" title="Показать/скрыть">👁</button>
+      <div class="who">
+        <span class="user-chip" id="whoName">—</span>
+        <a class="head-link" href="/" rel="noreferrer">← В основное окно</a>
+        <button type="button" class="link-btn" id="btnLogout">Выйти</button>
       </div>
-      <div class="row-opt">
-        <button type="button" class="clear-key" id="removeKey" hidden>✕ Удалить сохранённый ключ</button>
+    </header>
+
+    <div class="statusbar" id="statusbar">
+      <span id="conn"><span class="dot"></span>Статус…</span>
+      <span class="chip">Сервер: <b id="stHost">—</b></span>
+      <span class="chip">Тип: <b id="stBackend">—</b></span>
+      <span class="chip">Модель: <b id="stModel">—</b></span>
+      <span class="chip">PaddleOCR: <b id="stPaddle">—</b></span>
+      <span class="save-info" id="saveInfo"></span>
+    </div>
+
+    <div class="tabs" id="tabs" role="tablist" aria-label="Разделы консоли">
+      <button type="button" class="on" data-tab="server" role="tab" aria-selected="true">Сервер и модель</button>
+      <button type="button" data-tab="users" role="tab" aria-selected="false">Пользователи</button>
+      <button type="button" data-tab="stats" role="tab" aria-selected="false">Статистика</button>
+    </div>
+
+    <div id="panelServer">
+      <div class="grid">
+        <section class="card">
+          <h2>Сервер ИИ</h2>
+          <p class="note">Запросы будут уходить на выбранный адрес. Принимаются только локальные адреса и частные сети школы (localhost, 10.x, 172.16–31.x, 192.168.x) — облачные сервисы по политике 152-ФЗ не подключаются.</p>
+
+          <div class="seg" id="seg">
+            <button type="button" data-prov="ollama">Ollama<small>порт 11434</small></button>
+            <button type="button" data-prov="lmstudio">LM Studio<small>порт 1234</small></button>
+            <button type="button" data-prov="openai">Другой сервер<small>OpenAI /v1</small></button>
+          </div>
+
+          <label class="lbl" for="host">Адрес сервера</label>
+          <input type="text" id="host" spellcheck="false" placeholder="http://127.0.0.1:1234"/>
+          <div class="hint">Без пути <code>/v1</code> — он добавляется автоматически. Пример: <code>http://192.168.0.19:1234</code></div>
+
+          <label class="lbl" for="apikey">API-ключ (только OpenAI-совместимые серверы; Ollama не требует)</label>
+          <div class="keyline">
+            <input type="password" id="apikey" spellcheck="false" autocomplete="off"/>
+            <button type="button" class="icon-btn" id="showKey" title="Показать/скрыть">👁</button>
+          </div>
+          <div class="row-opt">
+            <button type="button" class="clear-key" id="removeKey" hidden>✕ Удалить сохранённый ключ</button>
+          </div>
+
+          <div class="actions">
+            <button type="button" class="secondary" id="btnCheck">Проверить и найти модели</button>
+          </div>
+          <div class="msg" id="msgConn"></div>
+        </section>
+
+        <section class="card">
+          <h2>Модель</h2>
+          <p class="note">Список моделей заполняется кнопкой «Проверить». Выбор применяется сразу и запоминается при сохранении.</p>
+          <label class="lbl" for="model">Vision-модель на сервере</label>
+          <select id="model"></select>
+          <label class="lbl" for="temp">Температура: <span id="tempVal">0</span></label>
+          <div class="range">
+            <input type="range" id="temp" min="0" max="1" step="0.05" value="0"/>
+            <output id="tempOut">0</output>
+          </div>
+          <div class="hint">Случайность ответа. 0 — строгое распознавание (рекомендуется), выше — разнообразие формулировок.</div>
+
+          <label class="lbl" for="topp">top_p: <span id="topPVal">1</span></label>
+          <div class="range">
+            <input type="range" id="topp" min="0" max="1" step="0.05" value="1"/>
+            <output id="topPOut">1</output>
+          </div>
+          <div class="hint">Сэмплирование. 1 — без отсечения (по умолчанию).</div>
+
+          <label class="lbl" for="maxtok">Лимит токенов ответа (max_tokens / num_predict)</label>
+          <input type="number" id="maxtok" min="64" max="200000" step="256" value="4096"/>
+
+          <label class="lbl" for="timeout">Таймаут запроса, секунд</label>
+          <input type="number" id="timeout" min="10" max="3600" step="10" placeholder="пусто = LM Studio 180 c, Ollama без лимита"/>
+          <div class="hint">Если оставить пустым — используется значение по умолчанию.</div>
+
+          <label class="lbl" for="sys">Дополнительная системная инструкция</label>
+          <textarea id="sys" placeholder="Например: «Отвечай строго на русском языке. Не добавляй пояснений.»"></textarea>
+          <div class="hint">Добавляется поверх базовых правил распознавания. Обычно можно оставить пустым.</div>
+        </section>
+
+        <section class="card wide">
+          <div class="actions" style="margin-top:0">
+            <button type="button" class="primary" id="btnSave">Сохранить и применить настройки</button>
+            <button type="button" class="danger secondary" id="btnReset">Сбросить к заводским</button>
+            <span class="save-info" id="lsInfo">локальная копия формы в этом браузере</span>
+          </div>
+          <div class="msg" id="msgMain"></div>
+        </section>
       </div>
+    </div>
 
-      <div class="actions">
-        <button type="button" class="secondary" id="btnCheck">Проверить и найти модели</button>
-      </div>
-      <div class="msg" id="msgConn"></div>
-    </section>
+    <div id="panelUsers" hidden>
+      <section class="card">
+        <h2>Пользователи</h2>
+        <p class="note">Создавайте учётные записи операторов (работа с документами) и дополнительных администраторов. У новых учётных записей при первом входе будет запрошена смена пароля.</p>
+        <div class="toolbar">
+          <input class="grow" type="text" id="uName" placeholder="Логин" spellcheck="false"/>
+          <input type="password" id="uPass" placeholder="Пароль (мин. 4 символа)" autocomplete="new-password"/>
+          <select id="uRole" title="Роль">
+            <option value="operator">Пользователь</option>
+            <option value="admin">Администратор</option>
+          </select>
+          <button type="button" class="primary" id="uCreate">Создать учётку</button>
+        </div>
+        <div class="msg" id="msgUsers"></div>
+        <div id="usersList"><p class="empty">Загрузка…</p></div>
+      </section>
+    </div>
 
-    <section class="card">
-      <h2>Модель</h2>
-      <p class="note">Список моделей заполняется кнопкой «Проверить». Выбор применяется сразу и запоминается при сохранении.</p>
-      <label class="lbl" for="model">Vision-модель на сервере</label>
-      <select id="model"></select>
-      <label class="lbl" for="temp">Температура: <span id="tempVal">0</span></label>
-      <div class="range">
-        <input type="range" id="temp" min="0" max="1" step="0.05" value="0"/>
-        <output id="tempOut">0</output>
-      </div>
-      <div class="hint">Случайность ответа. 0 — строгое распознавание (рекомендуется), выше — разнообразие формулировок.</div>
-
-      <label class="lbl" for="topp">top_p: <span id="topPVal">1</span></label>
-      <div class="range">
-        <input type="range" id="topp" min="0" max="1" step="0.05" value="1"/>
-        <output id="topPOut">1</output>
-      </div>
-      <div class="hint">Сэмплирование. 1 — без отсечения (по умолчанию).</div>
-
-      <label class="lbl" for="maxtok">Лимит токенов ответа (max_tokens / num_predict)</label>
-      <input type="number" id="maxtok" min="64" max="200000" step="256" value="4096"/>
-
-      <label class="lbl" for="timeout">Таймаут запроса, секунд</label>
-      <input type="number" id="timeout" min="10" max="3600" step="10" placeholder="пусто = LM Studio 180 c, Ollama без лимита"/>
-      <div class="hint">Если оставить пустым — используется значение по умолчанию.</div>
-
-      <label class="lbl" for="sys">Дополнительная системная инструкция</label>
-      <textarea id="sys" placeholder="Например: «Отвечай строго на русском языке. Не добавляй пояснений.»"></textarea>
-      <div class="hint">Добавляется поверх базовых правил распознавания. Обычно можно оставить пустым.</div>
-    </section>
-
-    <section class="card wide">
-      <div class="actions" style="margin-top:0">
-        <button type="button" class="primary" id="btnSave">Сохранить и применить настройки</button>
-        <button type="button" class="danger secondary" id="btnReset">Сбросить к заводским</button>
-        <span class="save-info" id="lsInfo">локальная копия формы в этом браузере</span>
-      </div>
-      <div class="msg" id="msgMain"></div>
-    </section>
+    <div id="panelStats" hidden>
+      <section class="card">
+        <h2>Статистика использования</h2>
+        <p class="note">Обезличенные счётчики по журналу активности: кто, какое действие и когда выполнял. В журнал не попадают имена файлов и значения полей.</p>
+        <div class="msg" id="msgStats"></div>
+        <div id="statsWrap"><p class="empty">Загрузка…</p></div>
+      </section>
+    </div>
   </div>
 </div>
 
 <script>
 "use strict";
+const TOKEN_KEY = "docai_token";
 const PRESETS = {
   ollama:  {label:"Ollama",  host:"http://127.0.0.1:11434"},
   lmstudio:{label:"LM Studio", host:"http://127.0.0.1:1234"},
@@ -188,6 +314,231 @@ const PRESETS = {
 const LS_KEY = "docai_settings_form_v1";
 const $ = (id) => document.getElementById(id);
 
+let TOKEN = "";
+let ME = null;   // { username, role, must_change } вошедшего администратора
+function loadToken(){ try { TOKEN = localStorage.getItem(TOKEN_KEY) || ""; } catch (e) { TOKEN = ""; } }
+function saveToken(t){ TOKEN = t || ""; try { if (TOKEN) localStorage.setItem(TOKEN_KEY, TOKEN); else localStorage.removeItem(TOKEN_KEY); } catch (e) { /* noop */ } }
+function esc(s){
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => (
+    {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
+  ));
+}
+
+// --- Авторизованный запрос с токеном -----------------------------------
+async function api(path, body, method) {
+  const headers = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (TOKEN) headers["Authorization"] = "Bearer " + TOKEN;
+  const useMethod = method || (body === undefined ? "GET" : "POST");
+  const res = await fetch(path, {
+    method: useMethod,
+    headers: headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  let data = null;
+  try { data = await res.json(); } catch (e) { /* пустой ответ */ }
+  if (res.status === 401 && path !== "/api/auth/login") {
+    // Сессия истекла — возвращаемся на экран входа.
+    saveToken("");
+    showView("auth");
+    return Promise.reject(new Error((data && data.detail) || "Сессия истекла — войдите снова."));
+  }
+  if (!res.ok) {
+    const detail = (data && data.detail) ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail)) : ("HTTP " + res.status);
+    throw new Error(detail);
+  }
+  return data || {};
+}
+
+// --- Переключение представлений ----------------------------------------
+function showView(name) {
+  $("authView").hidden = name !== "auth";
+  $("consoleView").hidden = name !== "console";
+}
+function showAuth(kind) {
+  showView("auth");
+  $("loginForm").hidden = kind !== "login";
+  $("deniedBox").hidden = kind !== "denied";
+  $("mustBox").hidden = kind !== "must";
+  $("checkBox").hidden = kind !== "check";
+}
+function showMsg(el, text, kind) {
+  el.className = "msg show " + (kind || "");
+  el.textContent = text;
+}
+
+async function enterConsole(user) {
+  ME = user;
+  $("whoName").textContent = user.username + " · администратор";
+  showView("console");
+  load();
+}
+
+async function ensureAdmin() {
+  loadToken();
+  if (!TOKEN) { showAuth("login"); return; }
+  try {
+    const me = await api("/api/auth/me");
+    if (!me.user) { showAuth("login"); return; }
+    if (me.user.role !== "admin") { showAuth("denied"); return; }
+    if (me.user.must_change) { showAuth("must"); return; }
+    enterConsole(me.user);
+  } catch (err) {
+    // api() уже показал вход при 401; иначе — просто вход.
+    showAuth("login");
+  }
+}
+
+// --- Вход ---------------------------------------------------------------
+$("loginForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const username = $("loginName").value.trim();
+  const password = $("loginPass").value;
+  const errBox = $("loginErr");
+  errBox.hidden = true;
+  if (!username || !password) { errBox.textContent = "Введите логин и пароль."; errBox.hidden = false; return; }
+  const btn = $("loginBtn"); btn.disabled = true; btn.textContent = "Вход…";
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: username, password: password }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || "Не удалось войти.");
+    saveToken(data.token);
+    await ensureAdmin();
+  } catch (err) {
+    errBox.textContent = err.message; errBox.hidden = false;
+  } finally {
+    btn.disabled = false; btn.textContent = "Войти";
+  }
+});
+
+$("btnLogout").addEventListener("click", async () => {
+  try { await api("/api/auth/logout", {}); } catch (e) { /* уже недействительна */ }
+  saveToken("");
+  showAuth("login");
+});
+
+// --- Вкладки ------------------------------------------------------------
+function showPanel(name) {
+  $("panelServer").hidden = name !== "server";
+  $("panelUsers").hidden = name !== "users";
+  $("panelStats").hidden = name !== "stats";
+  document.querySelectorAll("#tabs button").forEach((b) => {
+    const on = b.dataset.tab === name;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  if (name === "users") loadUsers();
+  if (name === "stats") loadStats();
+}
+$("tabs").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-tab]");
+  if (btn) showPanel(btn.dataset.tab);
+});
+
+// --- Пользователи --------------------------------------------------------
+async function loadUsers() {
+  const box = $("usersList");
+  try {
+    const list = await api("/api/users");
+    const meName = ME ? ME.username : "";
+    if (!list.length) { box.innerHTML = "<p class='empty'>Пользователей пока нет.</p>"; return; }
+    box.innerHTML = list.map((u) => {
+      const isMe = u.username === meName;
+      const chips =
+        '<span class="role-chip ' + u.role + '">' + (u.role === "admin" ? "Администратор" : "Пользователь") + "</span>" +
+        (u.must_change ? '<span class="flag-chip warnc" title="При следующем входе потребуется смена пароля">сменить пароль</span>' : "") +
+        (u.disabled ? '<span class="flag-chip off">заблокирован</span>' : "");
+      const actions =
+        '<button class="tiny-btn" data-a="reset" data-id="' + u.id + '">Сбросить пароль</button>' +
+        '<button class="tiny-btn" data-a="toggle" data-id="' + u.id + '"' + (isMe ? " disabled" : "") + '>' + (u.disabled ? "Разблокировать" : "Заблокировать") + "</button>" +
+        '<button class="tiny-btn danger-btn" data-a="del" data-id="' + u.id + '"' + (isMe ? " disabled" : "") + '>Удалить</button>';
+      return '<div class="user-row"><span class="user-name">' + esc(u.username) +
+        "<small>создан " + esc(String(u.created_at || "").slice(0, 10)) + " · вход " + (u.last_login_at ? esc(String(u.last_login_at).slice(0, 16).replace("T", " ")) : "ещё не входил") + "</small></span>" +
+        chips + '<span class="row-actions">' + actions + "</span></div>";
+    }).join("");
+  } catch (err) {
+    box.innerHTML = "<p class='empty'>Не удалось загрузить пользователей: " + esc(err.message) + "</p>";
+  }
+}
+
+$("usersList").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-a]");
+  if (!btn) return;
+  const id = parseInt(btn.dataset.id, 10);
+  const action = btn.dataset.a;
+  const msg = $("msgUsers");
+  if (action === "del") {
+    if (!confirm("Удалить эту учётную запись? Её сессии будут закрыты.")) return;
+    try { await api("/api/users/" + id, undefined, "DELETE"); showMsg(msg, "Учётная запись удалена.", "ok"); }
+    catch (err) { showMsg(msg, err.message, "err"); }
+    loadUsers();
+    return;
+  }
+  if (action === "toggle") {
+    const disableNow = btn.textContent.indexOf("Заблокировать") === 0;
+    try { await api("/api/users/" + id + "/disable", { disabled: disableNow }); showMsg(msg, disableNow ? "Учётная запись заблокирована." : "Учётная запись разблокирована.", "ok"); }
+    catch (err) { showMsg(msg, err.message, "err"); }
+    loadUsers();
+    return;
+  }
+  if (action === "reset") {
+    const pw = prompt("Новый пароль для пользователя (минимум 4 символа). При следующем входе будет запрошена смена пароля:");
+    if (pw == null) return;
+    if (pw.length < 4) { showMsg(msg, "Пароль слишком короткий.", "err"); return; }
+    try { await api("/api/users/" + id + "/reset-password", { password: pw, must_change: true }); showMsg(msg, "Пароль сброшен.", "ok"); }
+    catch (err) { showMsg(msg, err.message, "err"); }
+    loadUsers();
+  }
+});
+
+$("uCreate").addEventListener("click", async () => {
+  const msg = $("msgUsers");
+  const name = $("uName").value.trim();
+  const pass = $("uPass").value;
+  if (!name || pass.length < 4) { showMsg(msg, "Укажите логин и пароль не короче 4 символов.", "err"); return; }
+  try {
+    const created = await api("/api/users", { username: name, password: pass, role: $("uRole").value, must_change: true });
+    $("uName").value = ""; $("uPass").value = "";
+    showMsg(msg, "Учётная запись «" + created.username + "» создана. При первом входе потребуется смена пароля.", "ok");
+    loadUsers();
+  } catch (err) { showMsg(msg, err.message, "err"); }
+});
+
+// --- Статистика ----------------------------------------------------------
+function fmtMs(ms) {
+  if (ms == null) return "—";
+  if (ms < 1000) return ms + " мс";
+  return (ms / 1000).toFixed(1) + " с";
+}
+function loadStats() {
+  const wrap = $("statsWrap");
+  api("/api/stats").then((s) => {
+    const users = s.users || []; const days = s.days || []; const recent = s.recent || [];
+    const headU = "<thead><tr><th>Пользователь</th><th class='num'>Действий</th><th class='num'>Успешно</th><th class='num'>Ошибок</th><th class='num'>Ср. время</th><th>Последнее</th></tr></thead>";
+    const rowsU = users.map((u) => "<tr><td>" + esc(u.username) + "</td><td class='num'>" + u.actions + "</td><td class='num'>" + u.ok_count + "</td><td class='num'>" + u.error_count + "</td><td class='num'>" + fmtMs(u.avg_elapsed_ms) + "</td><td>" + esc(String(u.last_ts || "").slice(0, 16).replace("T", " ")) + "</td></tr>").join("");
+    const rowsD = days.map((d) => "<tr><td>" + esc(d.day) + "</td><td class='num'>" + d.actions + "</td><td class='num'>" + d.ok_count + "</td></tr>").join("");
+    const rowsR = recent.map((r) =>
+      '<div class="recent-line"><span class="ts">' + esc(String(r.ts).slice(0, 16).replace("T", " ")) + '</span><span class="act">' + esc(r.action) + '</span><span class="' + (r.ok ? "ok-true" : "ok-false") + '">' + (r.ok ? "ok" : "ошибка") + "</span><span>" + esc(r.username) + "</span><span class='ts'>" + fmtMs(r.elapsed_ms) + "</span></div>"
+    ).join("");
+    wrap.innerHTML =
+      '<div class="block-title">По пользователям (за 30 дней)</div>' +
+      (rowsU ? '<table class="tbl">' + headU + "<tbody>" + rowsU + "</tbody></table>" : "<p class='empty'>Активности пока нет.</p>") +
+      '<div class="block-title">По дням (за 30 дней)</div>' +
+      (rowsD ? '<table class="tbl"><thead><tr><th>День</th><th class="num">Действий</th><th class="num">Успешно</th></tr></thead><tbody>' + rowsD + "</tbody></table>" : "<p class='empty'>Нет данных.</p>") +
+      '<div class="block-title">Последние действия</div>' +
+      (rowsR || "<p class='empty'>Журнал пуст.</p>");
+    $("msgStats").className = "msg";
+  }).catch((err) => {
+    wrap.innerHTML = "<p class='empty'>Не удалось загрузить статистику: " + esc(err.message) + "</p>";
+    $("msgStats").className = "msg";
+  });
+}
+
+// --- Сервер и модель (логика как в отдельном окне настроек) --------------
 const state = {
   provider: detectProvider(""),
   hostEdited: false,
@@ -203,25 +554,8 @@ function detectProvider(host) {
   if (h.includes(":1234")) return "lmstudio";
   return "openai";
 }
-function currentProvider() {
-  return detectProvider($("host").value);
-}
+function currentProvider() { return detectProvider($("host").value); }
 function normKey(s){ return (s||"").trim(); }
-
-async function api(path, body) {
-  const res = await fetch(path, {
-    method: body === undefined ? "GET" : "POST",
-    headers: body === undefined ? undefined : {"Content-Type":"application/json"},
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  let data = null;
-  try { data = await res.json(); } catch (e) { /* пустой ответ */ }
-  if (!res.ok) {
-    const detail = (data && data.detail) ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail)) : ("HTTP " + res.status);
-    throw new Error(detail);
-  }
-  return data || {};
-}
 
 function renderSeg() {
   document.querySelectorAll("#seg button").forEach((btn) => {
@@ -232,7 +566,6 @@ function renderSeg() {
   $("apikey").parentElement.style.display = needsKey ? "" : "none";
   $("removeKey").hidden = !(state.savedKeySet && !state.apiKeyTouched);
 }
-
 function setHost(v) { $("host").value = v || ""; renderSeg(); }
 
 function applySettings(s) {
@@ -243,7 +576,6 @@ function applySettings(s) {
   state.models = act.models || [];
   if (!state.hostEdited) setHost((saved.host || act.host || ""));
 
-  // Параметры: сохранённые важнее активных (активные уже отражают их).
   const p = Object.keys(saved.params || {}).length ? saved.params : (act.params || {});
   $("temp").value = (p.temperature == null ? 0 : p.temperature);
   $("topp").value = (p.top_p == null ? 1 : p.top_p);
@@ -252,7 +584,6 @@ function applySettings(s) {
   $("sys").value = p.extra_system_prompt || "";
   syncParamsLabels();
 
-  // АПИ-ключ не показываем (маскирован). placeholder подсказывает.
   if (state.savedKeySet) {
     $("apikey").value = "";
     $("apikey").placeholder = "Сохранён (" + (saved.api_key_hint || "•••") + "). Введите новый или удалите.";
@@ -298,11 +629,6 @@ function updateStatus(act) {
   $("saveInfo").textContent = "";
 }
 
-function showMsg(el, text, kind) {
-  el.className = "msg show " + (kind || "");
-  el.textContent = text;
-}
-
 function syncParamsLabels() {
   $("tempVal").textContent = $("temp").value;
   $("tempOut").textContent = $("temp").value;
@@ -323,8 +649,8 @@ function collectParams() {
 }
 
 function apiKeyToSend() {
-  if (state.apiKeyTouched) return normKey($("apikey").value); // "" очищает
-  return null; // не менять
+  if (state.apiKeyTouched) return normKey($("apikey").value);
+  return null;
 }
 
 function rememberLocal() {
@@ -336,7 +662,7 @@ function rememberLocal() {
       apiKeyTouched: state.apiKeyTouched,
       apiKey: state.apiKeyTouched ? $("apikey").value : "",
     }));
-  } catch (e) { /* приватный режим — не критично */ }
+  } catch (e) { /* приватный режим */ }
 }
 
 function restoreLocal() {
@@ -361,7 +687,6 @@ async function load() {
     const s = await api("/api/settings");
     applySettings(s);
   } catch (err) {
-    // Сервер отдал ошибку — показываем локальную копию формы.
     restoreLocal();
     showMsg($("msgConn"), "Не удалось загрузить настройки: " + err.message, "err");
     updateStatus(null);
@@ -369,7 +694,7 @@ async function load() {
   renderSeg();
 }
 
-// --- Действия ---------------------------------------------------------
+// --- События вкладки «Сервер и модель» -----------------------------------
 $("seg").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-prov]");
   if (!btn) return;
@@ -490,7 +815,10 @@ $("btnReset").addEventListener("click", async () => {
   }
 });
 
-load();
+// --- Старт ----------------------------------------------------------------
+showView("auth");
+showAuth("check");
+ensureAdmin();
 </script>
 </body>
 </html>

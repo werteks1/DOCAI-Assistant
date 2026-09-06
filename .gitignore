@@ -11,3 +11,7 @@ web/dist/
 .impeccable/
 settings.json
 settings.json.tmp
+docia.db
+docia.db-wal
+docia.db-shm
+docia.db.tmp

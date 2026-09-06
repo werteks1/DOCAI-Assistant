@@ -97,3 +97,56 @@ class HealthResponse(BaseModel):
 
 class ExtractResponse(BaseModel):
     data: Dict[str, Any]
+
+
+# --- Авторизация и роли -------------------------------------------------
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class AuthUser(BaseModel):
+    username: str
+    role: Literal["admin", "operator"]
+    must_change: bool
+
+
+class LoginResponse(BaseModel):
+    token: str
+    user: AuthUser
+
+
+class MeResponse(BaseModel):
+    user: AuthUser
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=4, max_length=256)
+
+
+class UserView(BaseModel):
+    id: int
+    username: str
+    role: Literal["admin", "operator"]
+    must_change: bool
+    disabled: bool
+    created_at: str
+    last_login_at: Optional[str] = None
+
+
+class UserCreateRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=4, max_length=256)
+    role: Literal["admin", "operator"] = "operator"
+    must_change: bool = True
+
+
+class UserResetPasswordRequest(BaseModel):
+    password: str = Field(min_length=4, max_length=256)
+    must_change: bool = True
+
+
+class UserSetDisabledRequest(BaseModel):
+    disabled: bool

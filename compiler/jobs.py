@@ -13,12 +13,14 @@ DocumentExtractor не потокобезопасен и разделяется 
 from __future__ import annotations
 
 import threading
+import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from excel_manager import ExcelManager
 from logging_utils import get_logger, reset_correlation, set_correlation
+from . import auth_store
 
 logger = get_logger("jobs")
 
@@ -91,6 +93,7 @@ class Job:
     current_message: str = ""
     error: Optional[str] = None
     items: List[JobItem] = field(default_factory=list)
+    username: Optional[str] = None  # для журнала активности (без ПД)
     _active: bool = field(default=True, repr=False)
 
 
@@ -106,12 +109,12 @@ class JobStore:
                     return job
         return None
 
-    def start(self, request, pipeline) -> str:
+    def start(self, request, pipeline, username: Optional[str] = None) -> str:
         """Создаёт и запускает джоб. Поднимает JobBusy, если активен другой."""
         with self._lock:
             if self._active_job() is not None:
                 raise JobBusy("Пакетная обработка уже выполняется. Дождитесь её завершения.")
-            job = Job(job_id=uuid.uuid4().hex, total=len(request.documents))
+            job = Job(job_id=uuid.uuid4().hex, total=len(request.documents), username=username)
             job.items = [JobItem(filename=document.filename) for document in request.documents]
             self._jobs[job.job_id] = job
         thread = threading.Thread(
@@ -151,6 +154,7 @@ class JobStore:
 
     def _run(self, job_id: str, request, pipeline) -> None:
         token = set_correlation(job_id)
+        job_started = time.monotonic()
         try:
             job = self.get(job_id)
             if job is None:
@@ -211,6 +215,24 @@ class JobStore:
             reset_correlation(token)
             job = self.get(job_id)
             if job is not None:
+                # PII-safe запись о завершении пакета (без имён файлов/значений).
+                try:
+                    ok_files = sum(1 for item in job.items if item.status == DONE)
+                    err_files = sum(1 for item in job.items if item.status == ERROR)
+                    auth_store.log_activity(
+                        job.username or "-",
+                        "batch",
+                        ok=(job.status != ERROR),
+                        elapsed_ms=int((time.monotonic() - job_started) * 1000),
+                        detail={
+                            "files": job.total,
+                            "ok": ok_files,
+                            "error": err_files,
+                            "status": job.status,
+                        },
+                    )
+                except Exception as exc:  # журнал не должен валить джоб
+                    logger.warning("журнал активности: ошибка %s", type(exc).__name__)
                 self._update(job)
 
     def _annotate_duplicates(self, job: Job) -> None:

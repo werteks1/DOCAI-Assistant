@@ -12,6 +12,18 @@ OLLAMA_HOST = os.getenv("DOCIA_OLLAMA_HOST", "http://192.168.0.19:1234")
 DEFAULT_MODEL = os.getenv("DOCIA_MODEL", "qwen2.5-vl:7b")
 # По умолчанию разрешены только loopback и RFC1918-сети для локального LAN-сервера.
 ALLOWED_AI_NETWORKS = ["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+
+# --- Авторизация и развёртывание -------------------------------------
+# LAN-режим (несколько школьных ПК): компилятор слушает 0.0.0.0 и сам отдаёт
+# собранный фронтенд из web/dist. Dev-режим оставляет BIND_HOST=127.0.0.1.
+BIND_HOST = os.getenv("DOCIA_BIND_HOST", "0.0.0.0")
+BIND_PORT = int(os.getenv("DOCIA_BIND_PORT", "8000"))
+WEB_DIST_DIR = Path(os.getenv("DOCIA_WEB_DIST", str(BASE_DIR / "web" / "dist")))
+
+# SQLite-хранилище учёток, сессий и журнала активности (файл в .gitignore).
+DOCIA_DB = Path(os.getenv("DOCIA_DB", str(BASE_DIR / "docia.db")))
+# Время жизни сессии (часы); скользящее — продлевается при каждом обращении.
+SESSION_TTL_HOURS = int(os.getenv("DOCIA_SESSION_TTL_HOURS", "24"))
 MAX_PDF_PAGES = 20
 MAX_IMAGE_PIXELS = 25_000_000
 

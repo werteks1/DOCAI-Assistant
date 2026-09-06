@@ -129,3 +129,21 @@ h2 { font-size: 21px; }
 .duplicate-banner { margin: 0 0 12px; padding: 11px 13px; border: 1px solid rgba(255, 176, 90, .45); border-radius: 10px; background: rgba(150, 60, 20, .20); color: #ffd9a8; font-size: 12px; line-height: 1.5; }
 .duplicate-banner strong { display: block; color: #ffb47a; margin-bottom: 3px; }
 .duplicate-banner small { display: block; margin-top: 4px; color: #c99f74; font-size: 11px; }
+
+/* --- Экран входа и смены пароля --- */
+.auth-card { max-width: 420px; margin: 64px auto 0; padding: 28px 26px 24px; border: 1px solid #293750; border-radius: 18px; background: rgba(20, 28, 42, .92); box-shadow: 0 24px 60px rgba(0, 0, 0, .25); }
+.auth-brand { color: #89a8ff; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 12px; }
+.auth-note { margin: 8px 0 22px; color: #8798b6; font-size: 13px; line-height: 1.5; }
+.auth-label { display: block; margin: 0 0 14px; color: #a9b8d0; font-size: 12px; font-weight: 700; }
+.auth-label input { display: block; width: 100%; margin-top: 6px; padding: 11px 12px; border: 1px solid #2d405c; border-radius: 10px; background: #0d1421; color: #edf3ff; font-size: 14px; box-sizing: border-box; }
+.auth-label input:focus { border-color: #6d98ff; outline: none; box-shadow: 0 0 0 3px rgba(91, 133, 255, .13); }
+.auth-error { margin: 0 0 14px; padding: 10px 12px; border: 1px solid rgba(255, 148, 156, .5); border-radius: 10px; background: rgba(255, 148, 156, .08); color: #ffb6bb; font-size: 13px; line-height: 1.45; }
+.auth-submit { width: 100%; margin-top: 4px; }
+.auth-ghost { display: block; margin: 12px auto 0; padding: 4px; background: transparent; border: 0; color: #8798b6; font-size: 12px; cursor: pointer; text-decoration: underline; }
+.auth-ghost:hover { color: #c6d7ff; }
+
+/* --- Шапка: пользователь и выход --- */
+.user-chip { display: inline-flex; align-items: center; padding: 9px 13px; border: 1px solid #3b4e6c; border-radius: 999px; background: #1a2942; color: #edf3ff; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.logout-button { padding: 9px 13px; border: 1px solid #3b4e6c; border-radius: 999px; background: transparent; color: #c6d7ff; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: border-color .18s ease, color .18s ease; }
+.logout-button:hover { color: #fff; border-color: #ff949c; }
+@media (max-width: 600px) { .user-chip, .logout-button { padding-inline: 9px; } }
