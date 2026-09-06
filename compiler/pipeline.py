@@ -18,17 +18,32 @@ logger = get_logger("pipeline")
 class CompilerPipeline:
     """Оркестратор: загрузка, OCR/VLM, валидатор и локальный справочник."""
 
-    def __init__(self) -> None:
-        self.extractor = DocumentExtractor(host=config.OLLAMA_HOST, model_name=config.DEFAULT_MODEL)
+    def __init__(self, host: Optional[str] = None, model_name: Optional[str] = None) -> None:
+        # Адрес/модель по умолчанию приходят из конфига либо из settings.json.
+        self.extractor = DocumentExtractor(
+            host=host or config.OLLAMA_HOST,
+            model_name=model_name or config.DEFAULT_MODEL,
+        )
         self.available_models: list[str] = list(getattr(self.extractor, "available_models", []))
 
     @property
     def paddle_available(self) -> bool:
         return bool(getattr(self.extractor.field_locator, "available", False))
 
-    def connect(self, host: str) -> dict[str, object]:
-        """Переключает Ollama/LM Studio на разрешённый адрес и проверяет модели."""
+    def connect(self, host: str, api_key: Optional[str] = None) -> dict[str, object]:
+        """Переключает Ollama/LM Studio на разрешённый адрес и проверяет модели.
+
+        При неудаче подключение откатывается к предыдущему адресу, чтобы
+        мёртвый сервер не «завис» в активном экземпляре экстрактора.
+        """
+        previous_host = self.extractor.host
+        previous_backend = self.extractor.backend
+        previous_model = self.extractor.model_name
+        previous_key = self.extractor.api_key
+
         self.extractor.set_host(host)
+        if api_key is not None:
+            self.extractor.set_api_key(api_key)
         models = self.extractor.get_available_models()
         self.available_models = models
         reachable = bool(models)
@@ -41,6 +56,21 @@ class CompilerPipeline:
                         break
                 except Exception:
                     continue
+        if not reachable:
+            # Откатываем предыдущее рабочее подключение.
+            self.extractor.set_host(previous_host)
+            self.extractor.backend = previous_backend
+            self.extractor.model_name = previous_model
+            if api_key is not None:
+                self.extractor.set_api_key(previous_key)
+            self.available_models = []
+            return {
+                "host": self.extractor.host,
+                "backend": self.extractor.backend,
+                "model": self.extractor.model_name,
+                "models": [],
+                "connected": False,
+            }
         if models and self.extractor.model_name not in models:
             preferred = next((m for m in models if "2.5-vl" in m.lower()), models[0])
             self.extractor.model_name = preferred

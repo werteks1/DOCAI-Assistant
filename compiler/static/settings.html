@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>DocAI — Настройки</title>
+<style>
+  :root{
+    --bg:#090d16; --card:rgba(20,28,42,.9); --line:#293750; --line2:#3b5071;
+    --ink:#edf3ff; --muted:#8798b6; --faint:#a9b8d0; --field:#0d1421;
+    --accent:#4d7dff; --accent2:#5969ea; --ok:#7cdb9b; --bad:#ff949c;
+    --warn:#f4c861;
+  }
+  *{box-sizing:border-box}
+  html{background:var(--bg);color-scheme:dark}
+  body{
+    margin:0; min-height:100vh; color:var(--ink);
+    font-family:'Avenir Next','Segoe UI',ui-sans-serif,system-ui,sans-serif;
+    background:
+      radial-gradient(circle at 6% 0%, rgba(65,112,239,.16), transparent 30rem),
+      radial-gradient(circle at 94% 100%, rgba(127,66,213,.12), transparent 28rem),
+      var(--bg);
+    font-synthesis:none;
+  }
+  .shell{max-width:1080px;margin:0 auto;padding:34px 26px 60px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:18px}
+  .brand{color:#89a8ff;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+  h1{margin:7px 0 0;font-size:clamp(24px,3.4vw,34px);font-weight:800;letter-spacing:-.03em}
+  .sub{margin:7px 0 0;color:var(--muted);font-size:13px}
+  .head-link{color:var(--muted);font-size:12px;text-decoration:none;white-space:nowrap}
+  .head-link:hover{color:#c6d7ff}
+  .statusbar{
+    display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin-bottom:18px;
+    padding:12px 15px;border:1px solid var(--line);border-radius:14px;
+    background:rgba(13,20,33,.8);font-size:12px;color:var(--faint);
+  }
+  .dot{display:inline-block;width:9px;height:9px;margin-right:6px;border-radius:50%;background:#5a6b85;vertical-align:1px}
+  .dot.ok{background:var(--ok);box-shadow:0 0 0 1px rgba(124,219,155,.28)}
+  .dot.bad{background:var(--bad)}
+  .statusbar b{color:#d9e4fa;font-weight:700}
+  .chip{padding:3px 9px;border:1px solid var(--line2);border-radius:99px;background:#151e2e;font-size:12px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .card{padding:20px;border:1px solid var(--line);border-radius:18px;background:var(--card);box-shadow:0 18px 46px rgba(0,0,0,.16)}
+  .card.wide{grid-column:1/-1}
+  .card h2{margin:0 0 4px;font-size:16px;font-weight:800;letter-spacing:-.01em}
+  .card .note{margin:0 0 15px;color:var(--muted);font-size:12px;line-height:1.45}
+  label.lbl{display:block;margin:13px 0 5px;color:var(--muted);font-size:12px;font-weight:700}
+  input[type=text],input[type=password],input[type=number],select,textarea{
+    width:100%;padding:10px 12px;color:var(--ink);background:var(--field);
+    border:1px solid #33445f;border-radius:9px;outline:none;font:inherit;font-size:13px;
+  }
+  input:focus,select:focus,textarea:focus{border-color:#6d98ff;box-shadow:0 0 0 3px rgba(91,133,255,.13)}
+  input::placeholder,textarea::placeholder{color:#7b8cab}
+  .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:2px}
+  .seg button{
+    padding:10px 6px;color:#8394b0;background:rgba(13,20,33,.7);border:1px solid var(--line);
+    border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;line-height:1.25;
+  }
+  .seg button small{display:block;margin-top:3px;color:#b9c9e4;font-size:12px;font-weight:600}
+  .seg button.on{color:#fff;border-color:#648dff;background:linear-gradient(135deg,#3a63d6,#4c5ad6)}
+  .seg button.on small{color:#e8eefb}
+  .row-opt{display:flex;align-items:center;gap:10px}
+  .range{display:flex;align-items:center;gap:12px}
+  .range input[type=range]{flex:1;accent-color:#6d98ff;cursor:pointer}
+  .range output{min-width:34px;text-align:right;color:#dce7fb;font-size:12px;font-weight:800}
+  .hint{color:#96a9c9;font-size:12px;margin-top:4px}
+  .keyline{display:flex;gap:8px}
+  .keyline input{flex:1}
+  .icon-btn{border:1px solid #3b4e6c;border-radius:9px;background:#1a2942;color:#cbd8ed;cursor:pointer;padding:0 10px;font-weight:800}
+  .clear-key{background:none;border:0;color:#b9c9e4;font-size:12px;cursor:pointer;padding:6px 0 0;text-decoration:underline}
+  .clear-key:hover{color:#ffb47a}
+  textarea{min-height:96px;resize:vertical}
+  .slider-2col{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}
+  .actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:18px}
+  .primary{border:0;border-radius:10px;padding:11px 17px;background:linear-gradient(135deg,#3a63d6,#4c5ad6);color:#fff;font-weight:800;cursor:pointer}
+  .secondary{border:1px solid #3b4e6c;border-radius:9px;padding:10px 14px;color:#cbd8ed;background:#1a2942;font-weight:700;cursor:pointer}
+  .danger{border-color:#5c3440;color:#ffb9c0;background:#2a1620}
+  button:disabled{opacity:.5;cursor:default}
+  .msg{margin-top:12px;font-size:12px;line-height:1.45;display:none}
+  .msg.show{display:block}
+  .msg.err{color:#ffadb8}.msg.ok{color:#7cdb9b}.msg.warn{color:#ffe1a0}
+  .kv{display:flex;flex-wrap:wrap;gap:4px 22px;color:var(--muted);font-size:12px}
+  .kv b{color:#d9e4fa;font-weight:700}
+  .save-info{margin-left:auto;color:#b9c9e4;font-size:12px}
+  .empty{color:#55647f;font-style:italic}
+  @media (max-width:760px){.grid{grid-template-columns:1fr}.card.wide{grid-column:auto}.slider-2col{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div>
+      <div class="brand">DOCAI · НАСТРОЙКИ</div>
+      <h1>Куда отправлять запросы распознавания</h1>
+      <p class="sub">Отдельное окно управления: пресеты Ollama и LM Studio, любой OpenAI-совместимый сервер и параметры VLM. Настройки хранятся в <b>settings.json</b> у компилятора и в этом браузере.</p>
+    </div>
+    <a class="head-link" href="/docs" target="_blank" rel="noreferrer">API-документация (Swagger) →</a>
+  </header>
+
+  <div class="statusbar" id="statusbar">
+    <span id="conn"><span class="dot"></span>Статус…</span>
+    <span class="chip">Сервер: <b id="stHost">—</b></span>
+    <span class="chip">Тип: <b id="stBackend">—</b></span>
+    <span class="chip">Модель: <b id="stModel">—</b></span>
+    <span class="chip">PaddleOCR: <b id="stPaddle">—</b></span>
+    <span class="save-info" id="saveInfo"></span>
+  </div>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Сервер ИИ</h2>
+      <p class="note">Запросы будут уходить на выбранный адрес. Принимаются только локальные адреса и частные сети школы (localhost, 10.x, 172.16–31.x, 192.168.x) — облачные сервисы по политике 152-ФЗ не подключаются.</p>
+
+      <div class="seg" id="seg">
+        <button type="button" data-prov="ollama">Ollama<small>порт 11434</small></button>
+        <button type="button" data-prov="lmstudio">LM Studio<small>порт 1234</small></button>
+        <button type="button" data-prov="openai">Другой сервер<small>OpenAI /v1</small></button>
+      </div>
+
+      <label class="lbl" for="host">Адрес сервера</label>
+      <input type="text" id="host" spellcheck="false" placeholder="http://127.0.0.1:1234"/>
+      <div class="hint">Без пути <code>/v1</code> — он добавляется автоматически. Пример: <code>http://192.168.0.19:1234</code></div>
+
+      <label class="lbl" for="apikey">API-ключ (только OpenAI-совместимые серверы; Ollama не требует)</label>
+      <div class="keyline">
+        <input type="password" id="apikey" spellcheck="false" autocomplete="off"/>
+        <button type="button" class="icon-btn" id="showKey" title="Показать/скрыть">👁</button>
+      </div>
+      <div class="row-opt">
+        <button type="button" class="clear-key" id="removeKey" hidden>✕ Удалить сохранённый ключ</button>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="secondary" id="btnCheck">Проверить и найти модели</button>
+      </div>
+      <div class="msg" id="msgConn"></div>
+    </section>
+
+    <section class="card">
+      <h2>Модель</h2>
+      <p class="note">Список моделей заполняется кнопкой «Проверить». Выбор применяется сразу и запоминается при сохранении.</p>
+      <label class="lbl" for="model">Vision-модель на сервере</label>
+      <select id="model"></select>
+      <label class="lbl" for="temp">Температура: <span id="tempVal">0</span></label>
+      <div class="range">
+        <input type="range" id="temp" min="0" max="1" step="0.05" value="0"/>
+        <output id="tempOut">0</output>
+      </div>
+      <div class="hint">Случайность ответа. 0 — строгое распознавание (рекомендуется), выше — разнообразие формулировок.</div>
+
+      <label class="lbl" for="topp">top_p: <span id="topPVal">1</span></label>
+      <div class="range">
+        <input type="range" id="topp" min="0" max="1" step="0.05" value="1"/>
+        <output id="topPOut">1</output>
+      </div>
+      <div class="hint">Сэмплирование. 1 — без отсечения (по умолчанию).</div>
+
+      <label class="lbl" for="maxtok">Лимит токенов ответа (max_tokens / num_predict)</label>
+      <input type="number" id="maxtok" min="64" max="200000" step="256" value="4096"/>
+
+      <label class="lbl" for="timeout">Таймаут запроса, секунд</label>
+      <input type="number" id="timeout" min="10" max="3600" step="10" placeholder="пусто = LM Studio 180 c, Ollama без лимита"/>
+      <div class="hint">Если оставить пустым — используется значение по умолчанию.</div>
+
+      <label class="lbl" for="sys">Дополнительная системная инструкция</label>
+      <textarea id="sys" placeholder="Например: «Отвечай строго на русском языке. Не добавляй пояснений.»"></textarea>
+      <div class="hint">Добавляется поверх базовых правил распознавания. Обычно можно оставить пустым.</div>
+    </section>
+
+    <section class="card wide">
+      <div class="actions" style="margin-top:0">
+        <button type="button" class="primary" id="btnSave">Сохранить и применить настройки</button>
+        <button type="button" class="danger secondary" id="btnReset">Сбросить к заводским</button>
+        <span class="save-info" id="lsInfo">локальная копия формы в этом браузере</span>
+      </div>
+      <div class="msg" id="msgMain"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+"use strict";
+const PRESETS = {
+  ollama:  {label:"Ollama",  host:"http://127.0.0.1:11434"},
+  lmstudio:{label:"LM Studio", host:"http://127.0.0.1:1234"},
+  openai:  {label:"Другой OpenAI-сервер", host:""}
+};
+const LS_KEY = "docai_settings_form_v1";
+const $ = (id) => document.getElementById(id);
+
+const state = {
+  provider: detectProvider(""),
+  hostEdited: false,
+  apiKeyTouched: false,
+  models: [],
+  active: null,
+  savedKeySet: false,
+};
+
+function detectProvider(host) {
+  const h = (host || "").toLowerCase();
+  if (h.includes(":11434")) return "ollama";
+  if (h.includes(":1234")) return "lmstudio";
+  return "openai";
+}
+function currentProvider() {
+  return detectProvider($("host").value);
+}
+function normKey(s){ return (s||"").trim(); }
+
+async function api(path, body) {
+  const res = await fetch(path, {
+    method: body === undefined ? "GET" : "POST",
+    headers: body === undefined ? undefined : {"Content-Type":"application/json"},
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  let data = null;
+  try { data = await res.json(); } catch (e) { /* пустой ответ */ }
+  if (!res.ok) {
+    const detail = (data && data.detail) ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail)) : ("HTTP " + res.status);
+    throw new Error(detail);
+  }
+  return data || {};
+}
+
+function renderSeg() {
+  document.querySelectorAll("#seg button").forEach((btn) => {
+    const on = currentProvider() === btn.dataset.prov;
+    btn.classList.toggle("on", on);
+  });
+  const needsKey = currentProvider() !== "ollama";
+  $("apikey").parentElement.style.display = needsKey ? "" : "none";
+  $("removeKey").hidden = !(state.savedKeySet && !state.apiKeyTouched);
+}
+
+function setHost(v) { $("host").value = v || ""; renderSeg(); }
+
+function applySettings(s) {
+  const saved = s.saved || {};
+  const act = s.active || {};
+  state.active = act;
+  state.savedKeySet = Boolean(saved.api_key_set);
+  state.models = act.models || [];
+  if (!state.hostEdited) setHost((saved.host || act.host || ""));
+
+  // Параметры: сохранённые важнее активных (активные уже отражают их).
+  const p = Object.keys(saved.params || {}).length ? saved.params : (act.params || {});
+  $("temp").value = (p.temperature == null ? 0 : p.temperature);
+  $("topp").value = (p.top_p == null ? 1 : p.top_p);
+  $("maxtok").value = (p.max_tokens == null ? 4096 : p.max_tokens);
+  $("timeout").value = (p.timeout_seconds == null ? "" : p.timeout_seconds);
+  $("sys").value = p.extra_system_prompt || "";
+  syncParamsLabels();
+
+  // АПИ-ключ не показываем (маскирован). placeholder подсказывает.
+  if (state.savedKeySet) {
+    $("apikey").value = "";
+    $("apikey").placeholder = "Сохранён (" + (saved.api_key_hint || "•••") + "). Введите новый или удалите.";
+  } else {
+    $("apikey").placeholder = "Не требуется (опционально)";
+  }
+
+  fillModelSelect(state.active && state.active.model);
+  updateStatus(act);
+  renderSeg();
+}
+
+function fillModelSelect(currentModel) {
+  const sel = $("model");
+  sel.innerHTML = "";
+  if (!state.models.length) {
+    const opt = document.createElement("option");
+    opt.textContent = "Модели не найдены — проверьте сервер";
+    opt.value = "";
+    sel.appendChild(opt);
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
+  state.models.forEach((m) => {
+    const opt = document.createElement("option");
+    opt.value = m; opt.textContent = m;
+    sel.appendChild(opt);
+  });
+  if (currentModel && state.models.includes(currentModel)) sel.value = currentModel;
+  else sel.value = state.models[0];
+}
+
+function updateStatus(act) {
+  const ok = act && act.connected;
+  const conn = $("conn");
+  conn.firstElementChild.className = "dot " + (ok ? "ok" : "bad");
+  conn.childNodes[1].textContent = " " + (ok ? "Сервер доступен" : act ? "Сервер недоступен" : "Нет данных");
+  $("stHost").textContent = (act && act.host) || "—";
+  $("stBackend").textContent = (act && act.backend) || "—";
+  $("stModel").textContent = (act && act.model) || "—";
+  $("stPaddle").textContent = act ? (act.paddle_available ? "доступен" : "нет (VLM)") : "—";
+  $("saveInfo").textContent = "";
+}
+
+function showMsg(el, text, kind) {
+  el.className = "msg show " + (kind || "");
+  el.textContent = text;
+}
+
+function syncParamsLabels() {
+  $("tempVal").textContent = $("temp").value;
+  $("tempOut").textContent = $("temp").value;
+  $("topPVal").textContent = $("topp").value;
+  $("topPOut").textContent = $("topp").value;
+}
+
+function collectParams() {
+  const topP = parseFloat($("topp").value);
+  const t = $("timeout").value;
+  return {
+    temperature: parseFloat($("temp").value),
+    top_p: Number.isFinite(topP) ? topP : null,
+    max_tokens: parseInt($("maxtok").value, 10) || 4096,
+    timeout_seconds: t === "" ? null : (parseInt(t, 10) || null),
+    extra_system_prompt: $("sys").value.trim(),
+  };
+}
+
+function apiKeyToSend() {
+  if (state.apiKeyTouched) return normKey($("apikey").value); // "" очищает
+  return null; // не менять
+}
+
+function rememberLocal() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      host: $("host").value, provider: currentProvider(),
+      temp: $("temp").value, topp: $("topp").value, maxtok: $("maxtok").value,
+      timeout: $("timeout").value, sys: $("sys").value,
+      apiKeyTouched: state.apiKeyTouched,
+      apiKey: state.apiKeyTouched ? $("apikey").value : "",
+    }));
+  } catch (e) { /* приватный режим — не критично */ }
+}
+
+function restoreLocal() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const f = JSON.parse(raw);
+    if (f.host) setHost(f.host);
+    if (f.temp != null) $("temp").value = f.temp;
+    if (f.topp != null) $("topp").value = f.topp;
+    if (f.maxtok != null) $("maxtok").value = f.maxtok;
+    if (f.timeout != null) $("timeout").value = f.timeout;
+    if (f.sys != null) $("sys").value = f.sys;
+    if (f.apiKeyTouched) { state.apiKeyTouched = true; $("apikey").value = f.apiKey || ""; }
+    syncParamsLabels();
+    return true;
+  } catch (e) { return false; }
+}
+
+async function load() {
+  try {
+    const s = await api("/api/settings");
+    applySettings(s);
+  } catch (err) {
+    // Сервер отдал ошибку — показываем локальную копию формы.
+    restoreLocal();
+    showMsg($("msgConn"), "Не удалось загрузить настройки: " + err.message, "err");
+    updateStatus(null);
+  }
+  renderSeg();
+}
+
+// --- Действия ---------------------------------------------------------
+$("seg").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-prov]");
+  if (!btn) return;
+  const prov = btn.dataset.prov;
+  if (prov !== currentProvider()) {
+    state.hostEdited = false;
+    setHost(PRESETS[prov].host);
+    if (prov === "openai") $("host").focus();
+  }
+  renderSeg();
+});
+
+$("host").addEventListener("input", () => {
+  state.hostEdited = true;
+  renderSeg();
+  rememberLocal();
+});
+
+$("apikey").addEventListener("input", () => {
+  state.apiKeyTouched = true;
+  $("removeKey").hidden = true;
+  rememberLocal();
+});
+
+$("showKey").addEventListener("click", () => {
+  const el = $("apikey");
+  el.type = el.type === "password" ? "text" : "password";
+});
+
+$("removeKey").addEventListener("click", () => {
+  $("apikey").value = "";
+  state.apiKeyTouched = true;
+  $("removeKey").hidden = true;
+  rememberLocal();
+});
+
+["temp","topp"].forEach((id) => {
+  $(id).addEventListener("input", () => { syncParamsLabels(); rememberLocal(); });
+});
+["maxtok","timeout"].forEach((id) => {
+  $(id).addEventListener("input", () => rememberLocal());
+});
+$("sys").addEventListener("input", () => rememberLocal());
+
+$("model").addEventListener("change", async () => {
+  const m = $("model").value;
+  if (!m) return;
+  try {
+    await api("/api/model", { model: m });
+    state.active.model = m;
+    showMsg($("msgMain"), "Модель «" + m + "» применена. Нажмите «Сохранить», чтобы запомнить.", "ok");
+  } catch (err) {
+    showMsg($("msgMain"), "Не удалось применить модель: " + err.message, "err");
+  }
+});
+
+$("btnCheck").addEventListener("click", async () => {
+  const host = normKey($("host").value);
+  if (!host) { showMsg($("msgConn"), "Введите адрес сервера.", "err"); return; }
+  const btn = $("btnCheck"); btn.disabled = true;
+  btn.textContent = "Проверка…";
+  showMsg($("msgConn"), "Подключение к " + host + "…", "");
+  try {
+    const info = await api("/api/connect", { host: host, api_key: apiKeyToSend() });
+    if (!info.connected) {
+      showMsg($("msgConn"), "Сервер по адресу " + info.host + " не ответил. Проверьте, что он запущен, и повторите.", "err");
+    } else {
+      state.models = info.models || [];
+      state.active = Object.assign({}, state.active, { host: info.host, backend: info.backend, model: info.model, connected: true });
+      fillModelSelect(info.model);
+      showMsg($("msgConn"), "Подключено: " + (info.backend || "ИИ") + ", моделей найдено: " + (info.models || []).length + ".", "ok");
+    }
+    updateStatus(state.active);
+    renderSeg();
+  } catch (err) {
+    showMsg($("msgConn"), err.message, "err");
+  } finally {
+    btn.disabled = false; btn.textContent = "Проверить и найти модели";
+  }
+});
+
+$("btnSave").addEventListener("click", async () => {
+  const host = normKey($("host").value);
+  if (!host) { showMsg($("msgMain"), "Укажите адрес сервера ИИ.", "err"); return; }
+  const btn = $("btnSave"); btn.disabled = true;
+  try {
+    const res = await api("/api/settings", {
+      host: host,
+      model: $("model").disabled ? null : ($("model").value || null),
+      api_key: apiKeyToSend(),
+      params: collectParams(),
+    });
+    state.apiKeyTouched = false;
+    applySettings(res);
+    state.hostEdited = false;
+    showMsg($("msgMain"), "Настройки сохранены в settings.json и применены. Адрес: " + res.active.host, "ok");
+    rememberLocal();
+  } catch (err) {
+    showMsg($("msgMain"), err.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("btnReset").addEventListener("click", async () => {
+  if (!confirm("Сбросить все настройки к заводским? Файл settings.json будет удалён, сервер ИИ — адрес по умолчанию.")) return;
+  const btn = $("btnReset"); btn.disabled = true;
+  try {
+    await api("/api/settings/reset", {});
+    state.apiKeyTouched = false; state.hostEdited = false;
+    $("apikey").value = "";
+    await load();
+    showMsg($("msgMain"), "Настройки сброшены к заводским значениям.", "ok");
+  } catch (err) {
+    showMsg($("msgMain"), "Не удалось сбросить: " + err.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+load();
+</script>
+</body>
+</html>

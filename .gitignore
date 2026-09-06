@@ -9,3 +9,5 @@ web/dist/
 .claude/
 .codex/
 .impeccable/
+settings.json
+settings.json.tmp

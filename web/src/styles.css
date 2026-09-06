@@ -25,10 +25,13 @@ h1 { font-size: clamp(28px, 4vw, 42px); line-height: 1.05; }
 h2 { font-size: 21px; }
 .subtitle, .panel-note { margin: 8px 0 0; color: #8798b6; font-size: 13px; line-height: 1.45; }
 .health { display: flex; align-items: center; gap: 8px; padding: 9px 13px; border: 1px solid #293750; border-radius: 999px; color: #a9b8d0; background: rgba(21, 29, 44, .75); font-size: 12px; white-space: nowrap; }
+.header-actions { display: flex; align-items: center; gap: 10px; }
+.settings-link { display: inline-flex; align-items: center; gap: 6px; padding: 9px 13px; border: 1px solid #3b4e6c; border-radius: 999px; color: #c6d7ff; background: #1a2942; text-decoration: none; font-size: 12px; font-weight: 700; white-space: nowrap; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.settings-link:hover { border-color: #648dff; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); transform: translateY(-1px); color: #fff; }
 .mode-switch { position: relative; display: grid; grid-template-columns: 1fr 1fr; width: min(560px, 100%); margin: 0 auto 22px; padding: 4px; border: 1px solid #293750; border-radius: 14px; background: rgba(13, 20, 33, .88); box-shadow: 0 12px 30px rgba(0, 0, 0, .16); }
 .mode-switch button { position: relative; z-index: 1; min-height: 38px; padding: 9px 15px; color: #8394b0; background: transparent; border: 0; border-radius: 10px; font-size: 13px; font-weight: 800; cursor: pointer; }
 .mode-switch button.active { color: #fff; }
-.mode-slider { position: absolute; z-index: 0; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 10px; background: linear-gradient(135deg, #4d7dff, #5969ea); box-shadow: 0 7px 18px rgba(65, 104, 224, .3); transform: translateX(0); transition: transform .25s ease; }
+.mode-slider { position: absolute; z-index: 0; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 10px; background: linear-gradient(135deg, #3a63d6, #4c5ad6); box-shadow: 0 7px 18px rgba(65, 104, 224, .3); transform: translateX(0); transition: transform .25s ease; }
 .mode-slider.batch-active { transform: translateX(100%); }
 .preview, .panel, .suggestions { background: rgba(20, 28, 42, .88); border: 1px solid #293750; box-shadow: 0 20px 60px rgba(0, 0, 0, .18); backdrop-filter: blur(18px); }
 .controls label { color: #9cabc3; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
@@ -55,7 +58,7 @@ h2 { font-size: 21px; }
 .pdf-preview small { color: #7e90ad; }
 .panel { padding: 24px; }
 .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 22px; }
-.primary, .suggestion button { border: 0; border-radius: 10px; padding: 11px 17px; background: linear-gradient(135deg, #4d7dff, #5969ea); color: #fff; font-weight: 800; cursor: pointer; }
+.primary, .suggestion button { border: 0; border-radius: 10px; padding: 11px 17px; background: linear-gradient(135deg, #3a63d6, #4c5ad6); color: #fff; font-weight: 800; cursor: pointer; }
 .primary:disabled { opacity: .45; cursor: default; }
 .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 19px; }
 .model-control { grid-column: 1 / -1; }
@@ -90,7 +93,7 @@ h2 { font-size: 21px; }
 .progress-meta strong { color: #d9e4fa; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 920px) { .shell { padding: 24px 18px 40px; } .workspace { grid-template-columns: 1fr; } .preview { min-height: 320px; } }
-@media (max-width: 600px) { header { align-items: flex-start; flex-direction: column; gap: 13px; } .mode-switch { margin-bottom: 16px; } .mode-switch button { padding-inline: 8px; font-size: 11px; } .controls { grid-template-columns: 1fr; } .model-control { grid-column: auto; } .panel-head { align-items: flex-start; flex-direction: column; } .panel-head .primary { width: 100%; } .suggestion { align-items: flex-start; flex-direction: column; } .suggestion button { width: 100%; } }
+@media (max-width: 600px) { header { align-items: flex-start; flex-direction: column; gap: 13px; } .header-actions { flex-wrap: wrap; } .mode-switch { margin-bottom: 16px; } .mode-switch button { padding-inline: 8px; font-size: 11px; } .controls { grid-template-columns: 1fr; } .model-control { grid-column: auto; } .panel-head { align-items: flex-start; flex-direction: column; } .panel-head .primary { width: 100%; } .suggestion { align-items: flex-start; flex-direction: column; } .suggestion button { width: 100%; } }
 .review-callout { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 16px 0 12px; padding: 14px 16px; border: 1px solid rgba(245, 190, 77, .4); border-radius: 12px; background: rgba(245, 190, 77, .1); }
 .review-callout strong, .review-callout span { display: block; }
 .review-callout strong { color: #ffe1a0; font-size: 13px; }
