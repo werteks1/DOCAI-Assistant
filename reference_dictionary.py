@@ -114,8 +114,8 @@ class ReferenceDictionary:
             if isinstance(value, str) and value.strip():
                 corrected, changes = self.correct_fio(value)
                 if changes:
-                    data[field] = corrected
                     corrections[field] = changes
+                    data.setdefault("_reference_suggestions", {})[field] = corrected
         for field in ("Адрес регистрации / проживания",):
             value = data.get(field)
             if isinstance(value, str) and value.strip():

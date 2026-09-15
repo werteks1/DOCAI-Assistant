@@ -12,6 +12,8 @@ DocumentExtractor не потокобезопасен и разделяется 
 """
 from __future__ import annotations
 
+import base64
+import io
 import threading
 import time
 import uuid
@@ -21,11 +23,13 @@ from typing import Any, Dict, List, Optional
 from excel_manager import ExcelManager
 from logging_utils import get_logger, reset_correlation, set_correlation
 from . import auth_store
+from cancellation import CancellationToken, ExtractionCancelled
+from document_loader import DocumentLoader
 
 logger = get_logger("jobs")
 
 # Единая блокировка любой экстракции (одиночной и пакетной).
-EXTRACTION_LOCK = threading.RLock()
+EXTRACTION_LOCK = threading.Lock()
 
 # Сколько завершённых джобов хранить в памяти (результаты забирает веб-клиент).
 KEEP_FINISHED_JOBS = 20
@@ -83,6 +87,32 @@ class JobItem:
     data: Optional[Dict[str, Any]] = None
 
 
+def make_preview(image_base64: str, page: int = 0, max_side: int = 900,
+                 quality: int = 72) -> Optional[bytes]:
+    """Лёгкий JPEG-превью из data URL (страница PDF выбирается параметром page).
+
+    Возвращает None для битых данных — превью не должно ломать джоб.
+    """
+    try:
+        raw = base64.b64decode(image_base64.split(",", 1)[-1], validate=False)
+        if raw[:5] == b"%PDF-":
+            import pymupdf
+
+            with pymupdf.open(stream=raw, filetype="pdf") as document:
+                if not document.page_count or not 0 <= page < document.page_count:
+                    return None
+                image = DocumentLoader.rasterize_page(document[page], pymupdf.Matrix(1.5, 1.5))
+        else:
+            image = DocumentLoader.open_image(io.BytesIO(raw))
+        with image:
+            image.thumbnail((max_side, max_side))
+            buffer = io.BytesIO()
+            image.save(buffer, format="JPEG", quality=quality)
+            return buffer.getvalue()
+    except Exception:
+        return None
+
+
 @dataclass
 class Job:
     job_id: str
@@ -93,8 +123,11 @@ class Job:
     current_message: str = ""
     error: Optional[str] = None
     items: List[JobItem] = field(default_factory=list)
+    previews: Dict[int, bytes] = field(default_factory=dict)
     username: Optional[str] = None  # для журнала активности (без ПД)
-    _active: bool = field(default=True, repr=False)
+    owner_id: Optional[int] = None
+    created_at: float = field(default_factory=time.monotonic)
+    cancellation: CancellationToken = field(default_factory=CancellationToken, repr=False)
 
 
 class JobStore:
@@ -105,25 +138,35 @@ class JobStore:
     def _active_job(self) -> Optional[Job]:
         with self._lock:
             for job in self._jobs.values():
-                if job.status == RUNNING and not job.cancelled:
+                if job.status == RUNNING:
                     return job
         return None
 
-    def start(self, request, pipeline, username: Optional[str] = None) -> str:
+    def start(self, request, pipeline, username: Optional[str] = None,
+              *, owner_id: int) -> str:
         """Создаёт и запускает джоб. Поднимает JobBusy, если активен другой."""
         with self._lock:
             if self._active_job() is not None:
                 raise JobBusy("Пакетная обработка уже выполняется. Дождитесь её завершения.")
-            job = Job(job_id=uuid.uuid4().hex, total=len(request.documents), username=username)
+            if not EXTRACTION_LOCK.acquire(blocking=False):
+                raise JobBusy("Распознавание уже выполняется. Дождитесь его завершения.")
+            job = Job(job_id=uuid.uuid4().hex, total=len(request.documents),
+                      username=username, owner_id=owner_id)
             job.items = [JobItem(filename=document.filename) for document in request.documents]
             self._jobs[job.job_id] = job
-        thread = threading.Thread(
-            target=self._run,
-            args=(job.job_id, request, pipeline),
-            name=f"docai-batch-{job.job_id[:8]}",
-            daemon=True,
-        )
-        thread.start()
+        try:
+            thread = threading.Thread(
+                target=self._run,
+                args=(job.job_id, request, pipeline, True),
+                name=f"docai-batch-{job.job_id[:8]}",
+                daemon=True,
+            )
+            thread.start()
+        except Exception:
+            with self._lock:
+                self._jobs.pop(job.job_id, None)
+            EXTRACTION_LOCK.release()
+            raise
         return job.job_id
 
     def get(self, job_id: str) -> Optional[Job]:
@@ -136,6 +179,7 @@ class JobStore:
             if job is None or job.status != RUNNING:
                 return False
             job.cancelled = True
+            job.cancellation.cancel()
             return True
 
     def _update(self, job: Job) -> None:
@@ -144,7 +188,7 @@ class JobStore:
             if job.status in (DONE, ERROR, CANCELLED):
                 finished = sorted(
                     (j for j in self._jobs.values() if j.status in (DONE, ERROR, CANCELLED)),
-                    key=lambda j: j.job_id,
+                    key=lambda j: j.created_at,
                 )
                 if len(finished) > KEEP_FINISHED_JOBS:
                     for stale in finished[:-KEEP_FINISHED_JOBS]:
@@ -152,14 +196,18 @@ class JobStore:
 
     # --- Выполнение -----------------------------------------------------
 
-    def _run(self, job_id: str, request, pipeline) -> None:
+    def _run(self, job_id: str, request, pipeline, lock_reserved: bool = False) -> None:
         token = set_correlation(job_id)
         job_started = time.monotonic()
         try:
             job = self.get(job_id)
             if job is None:
                 return
-            with exclusive_extraction():
+            if not lock_reserved:
+                lock_reserved = EXTRACTION_LOCK.acquire(blocking=False)
+                if not lock_reserved:
+                    raise JobBusy()
+            if lock_reserved:
                 job = self.get(job_id)
                 for index, document in enumerate(request.documents):
                     if job.cancelled:
@@ -170,6 +218,10 @@ class JobStore:
                     job.current_message = f"Файл {index + 1} из {job.total}"
                     job.completed = index
                     try:
+                        preview = make_preview(document.image_base64)
+                        if preview is not None:
+                            job.previews[index] = preview
+                        job.cancellation.check()
                         data = pipeline.extract(
                             document.image_base64,
                             request.target_columns,
@@ -177,14 +229,23 @@ class JobStore:
                             request.ocr_priority,
                             request.detector,
                             request.model,
+                            cancellation=job.cancellation,
                         )
+                        job.cancellation.check()
                         item.data = data
                         item.status = DONE
                         item.error = None
                         item.message = ""
                         logger.info("файл_%d из %d: ok", index + 1, job.total)
+                    except ExtractionCancelled:
+                        item.status = ERROR
+                        item.data = None
+                        item.error = "Обработка отменена"
+                        item.message = ""
+                        break
                     except Exception as exc:  # ошибка одного файла не валит джоб
                         item.status = ERROR
+                        item.data = None
                         item.error = friendly_error(exc)
                         item.message = ""
                         logger.warning("файл_%d из %d: error=%s",
@@ -195,8 +256,11 @@ class JobStore:
                     job.current_message = "Обработка отменена"
                     return
                 self._annotate_duplicates(job)
-                job.status = DONE
-                job.current_message = "Готово"
+                errors = sum(item.status == ERROR for item in job.items)
+                job.status = ERROR if errors == job.total else DONE
+                job.current_message = f"Завершено с ошибками: {errors} из {job.total}" if errors else "Готово"
+                if job.status == ERROR:
+                    job.error = "Не удалось распознать ни один документ"
                 logger.info("джоб %s завершён: %d файлов", job_id[:8], job.total)
         except JobBusy:
             # Не должно случаться: джоб стартует, только когда экстракция свободна.
@@ -212,6 +276,8 @@ class JobStore:
                 job.status = ERROR
                 job.error = friendly_error(exc)
         finally:
+            if lock_reserved:
+                EXTRACTION_LOCK.release()
             reset_correlation(token)
             job = self.get(job_id)
             if job is not None:
@@ -222,7 +288,7 @@ class JobStore:
                     auth_store.log_activity(
                         job.username or "-",
                         "batch",
-                        ok=(job.status != ERROR),
+                        ok=(job.status == DONE and err_files == 0),
                         elapsed_ms=int((time.monotonic() - job_started) * 1000),
                         detail={
                             "files": job.total,

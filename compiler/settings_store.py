@@ -8,7 +8,8 @@
 Правила безопасности:
 * API-ключ хранится только локально в файле, в .gitignore, и не попадает в логи.
 * GET-эндпоинты возвращают ключ только в маскированном виде (bool + хвост).
-* Адрес сервера по-прежнему проходит проверку _clean_host (только частные сети).
+* Адрес сервера ИИ не ограничен: допускается любой OpenAI-совместимый сервер.
+  Администратор сам отвечает за то, доверяет ли он выбранному серверу.
 """
 import json
 import os
@@ -30,11 +31,17 @@ def load_settings() -> Dict[str, Any]:
         return {}
 
 
-def save_settings(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Атомарно записывает settings.json, сливая поверх уже сохранённого."""
+def save_settings(data: Dict[str, Any], drop: tuple = ()) -> Dict[str, Any]:
+    """Атомарно записывает settings.json, сливая поверх уже сохранённого.
+
+    `drop` перечисляет ключи, которые нужно удалить (например, старые
+    одиночные host/api_key после перехода на список подключений).
+    """
     merged = dict(load_settings())
     for key, value in data.items():
         merged[key] = value
+    for key in drop:
+        merged.pop(key, None)
     tmp = SETTINGS_FILE.with_name(SETTINGS_FILE.name + ".tmp")
     tmp.write_text(
         json.dumps(merged, ensure_ascii=False, indent=2) + "\n",

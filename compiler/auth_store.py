@@ -160,17 +160,21 @@ def _purge_expired_sessions(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _normalize_username(username: str) -> str:
+    return (username or "").strip().casefold()
+
+
 def _find_user_row(conn: sqlite3.Connection, username: str) -> Optional[sqlite3.Row]:
     """Ищет пользователя по имени без учёта регистра (в т.ч. кириллицы).
 
     Пользователей немного (школьный LAN), поэтому таблица сканируется целиком
     и сравнивается через str.casefold — SQLite NOCASE складывает только ASCII.
     """
-    needle = (username or "").strip().casefold()
+    needle = _normalize_username(username)
     if not needle:
         return None
     for row in conn.execute("SELECT * FROM users"):
-        if (row["username"] or "").strip().casefold() == needle:
+        if _normalize_username(row["username"]) == needle:
             return row
     return None
 
@@ -331,12 +335,14 @@ _failures_lock = threading.Lock()
 
 
 def _clear_failures(username: str) -> None:
+    username = _normalize_username(username)
     with _failures_lock:
         _failures.pop(username, None)
 
 
 def _prune_failures(username: str) -> int:
     """Возвращает число неудач username в текущем окне."""
+    username = _normalize_username(username)
     now = time.monotonic()
     with _failures_lock:
         attempts = _failures.get(username, [])
@@ -346,6 +352,7 @@ def _prune_failures(username: str) -> int:
 
 
 def _record_failure(username: str) -> None:
+    username = _normalize_username(username)
     with _failures_lock:
         now = time.monotonic()
         attempts = _failures.get(username, [])

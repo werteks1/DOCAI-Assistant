@@ -22,6 +22,9 @@ class ExcelManager:
     
     STATUS_VERIFIED_FILL = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")
     STATUS_VERIFIED_FONT = Font(name="Calibri", size=10, bold=True, color="2E7D32")
+
+    STATUS_WARNING_FILL = PatternFill(start_color="FFF4D6", end_color="FFF4D6", fill_type="solid")
+    STATUS_WARNING_FONT = Font(name="Calibri", size=10, bold=True, color="8A6100")
     
     DATA_FONT = Font(name="Calibri", size=11, color="202020")
     BORDER_THIN = Border(
@@ -104,8 +107,15 @@ class ExcelManager:
                 cell.border = ExcelManager.BORDER_THIN
                 cell.alignment = Alignment(vertical="center", wrap_text=True)
                 if "статус" in name.lower():
-                    cell.fill = ExcelManager.STATUS_VERIFIED_FILL
-                    cell.font = ExcelManager.STATUS_VERIFIED_FONT
+                    # Цвет статуса отражает значение: подтверждённые — зелёные,
+                    # возможные дубли — янтарные, остальные — как строка таблицы.
+                    value_lower = str(value or "").lower()
+                    if "дубл" in value_lower:
+                        cell.fill = ExcelManager.STATUS_WARNING_FILL
+                        cell.font = ExcelManager.STATUS_WARNING_FONT
+                    elif "проверено" in value_lower:
+                        cell.fill = ExcelManager.STATUS_VERIFIED_FILL
+                        cell.font = ExcelManager.STATUS_VERIFIED_FONT
         ws.auto_filter.ref = f"A1:{get_column_letter(len(columns))}{max(2, len(records) + 1)}"
         ExcelManager._autofit_columns(ws)
         output = io.BytesIO()

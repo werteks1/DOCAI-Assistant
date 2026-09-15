@@ -4,12 +4,26 @@ import config
 
 
 class ExtractRequest(BaseModel):
+    request_id: Optional[str] = Field(default=None, min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")
     filename: str = "document.png"
     image_base64: str = Field(min_length=16)
     target_columns: Optional[list[str]] = None
     ocr_priority: Literal["auto", "paddle", "vlm"] = "auto"
     detector: Literal["PP-OCRv6_medium_det", "PP-OCRv6_small_det"] = config.PADDLE_DETECTOR
     model: Optional[str] = Field(default=None, max_length=200)
+    # Режим, из которого пришёл запрос (для журнала активности).
+    source: Literal["single", "batch"] = "single"
+
+
+class PreviewRequest(BaseModel):
+    image_base64: str = Field(min_length=16)
+    page: int = Field(default=0, ge=0, le=config.MAX_PDF_PAGES - 1)
+
+
+class DuplicatesRequest(BaseModel):
+    """Записи пачки для поиска внутренних дублей (без служебных ключей)."""
+    records: list[Dict[str, Any]] = Field(min_length=1, max_length=100)
+    filenames: list[str] = Field(default_factory=list)
 
 
 class BatchDocument(BaseModel):
@@ -65,6 +79,30 @@ class ConnectRequest(BaseModel):
     api_key: Optional[str] = Field(default=None, max_length=255)
 
 
+class ConnectionCreateRequest(BaseModel):
+    """Новое подключение: адрес обязателен, имя/ключ/модель опциональны."""
+    name: str = Field(default="", max_length=60)
+    host: str = Field(min_length=1, max_length=255)
+    api_key: Optional[str] = Field(default=None, max_length=255)
+    model: Optional[str] = Field(default=None, max_length=200)
+    activate: bool = True
+
+
+class ConnectionUpdateRequest(BaseModel):
+    """Правка подключения. None в api_key = не менять; "" = очистить ключ."""
+    name: Optional[str] = Field(default=None, max_length=60)
+    host: Optional[str] = Field(default=None, max_length=255)
+    api_key: Optional[str] = Field(default=None, max_length=255)
+    model: Optional[str] = Field(default=None, max_length=200)
+
+
+class ConnectionCheckRequest(BaseModel):
+    """Проверка адреса без сохранения. id позволяет взять сохранённый ключ."""
+    id: Optional[str] = Field(default=None, max_length=64)
+    host: str = Field(min_length=1, max_length=255)
+    api_key: Optional[str] = Field(default=None, max_length=255)
+
+
 class ModelRequest(BaseModel):
     model: str = Field(min_length=1, max_length=200)
 
@@ -92,6 +130,7 @@ class HealthResponse(BaseModel):
     model: str
     host: str
     backend: str
+    connection: str = ""
     models: list[str] = Field(default_factory=list)
 
 

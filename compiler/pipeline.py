@@ -11,8 +11,13 @@ import config
 from document_loader import DocumentLoader
 from extractor import DocumentExtractor
 from logging_utils import get_logger
+from cancellation import CancellationToken, ExtractionCancelled
 
 logger = get_logger("pipeline")
+
+
+class RecognitionError(RuntimeError):
+    """Распознавание документа не дало корректного результата."""
 
 
 class CompilerPipeline:
@@ -40,10 +45,19 @@ class CompilerPipeline:
         previous_backend = self.extractor.backend
         previous_model = self.extractor.model_name
         previous_key = self.extractor.api_key
+        previous_models = list(self.available_models)
 
         self.extractor.set_host(host)
         if api_key is not None:
             self.extractor.set_api_key(api_key)
+        google_sf = self.extractor._is_siliconflow_host(self.extractor.host) or self.extractor._is_google_host(self.extractor.host)
+        if google_sf and not self.extractor.api_key:
+            service = "Google AI Studio" if self.extractor._is_google_host(self.extractor.host) else "SiliconFlow"
+            self.extractor.set_host(previous_host)
+            self.extractor.backend = previous_backend
+            self.extractor.model_name = previous_model
+            self.extractor.set_api_key(previous_key)
+            raise ValueError(f"Для {service} необходимо указать API-ключ")
         models = self.extractor.get_available_models()
         self.available_models = models
         reachable = bool(models)
@@ -63,7 +77,9 @@ class CompilerPipeline:
             self.extractor.model_name = previous_model
             if api_key is not None:
                 self.extractor.set_api_key(previous_key)
-            self.available_models = []
+            # Возвращаем прежнее рабочее подключение вместе со списком моделей,
+            # чтобы неудачная проверка нового адреса не «ломала» активный сервер.
+            self.available_models = previous_models
             return {
                 "host": self.extractor.host,
                 "backend": self.extractor.backend,
@@ -82,6 +98,29 @@ class CompilerPipeline:
             "connected": reachable,
         }
 
+    def probe(self, host: str, api_key: Optional[str] = None) -> dict[str, object]:
+        """Проверяет адрес, не переключая активное подключение.
+
+        Используется для сохранённых профилей, которые не активны: результат
+        доступности нужен, но текущий рабочий сервер не должен меняться.
+        """
+        extractor = self.extractor
+        snapshot = (
+            extractor.host,
+            extractor.backend,
+            extractor.model_name,
+            extractor.api_key,
+            list(self.available_models),
+        )
+        try:
+            return self.connect(host, api_key)
+        finally:
+            extractor.set_host(snapshot[0])
+            extractor.backend = snapshot[1]
+            extractor.model_name = snapshot[2]
+            extractor.set_api_key(snapshot[3])
+            self.available_models = snapshot[4]
+
     def set_model(self, model: str) -> str:
         model = str(model or "").strip()
         if not model:
@@ -99,20 +138,40 @@ class CompilerPipeline:
         ocr_priority: str = "auto",
         detector: str = config.PADDLE_DETECTOR,
         model: Optional[str] = None,
+        *, cancellation: Optional[CancellationToken] = None,
     ) -> Dict[str, Any]:
         """Извлекает поля одного документа (для PDF — объединяя все страницы)."""
+        self._cancellation = cancellation
+        self.extractor.cancellation = cancellation
+        try:
+            self._check_cancelled()
+            result = self._extract_document(image_base64, target_columns, filename, ocr_priority, detector, model)
+            self._check_cancelled()
+            return result
+        finally:
+            self._cancellation = None
+            self.extractor.cancellation = None
+
+    def _check_cancelled(self):
+        cancellation = getattr(self, "_cancellation", None)
+        if cancellation is not None:
+            cancellation.check()
+
+    def _extract_document(self, image_base64, target_columns, filename, ocr_priority, detector, model):
         if model:
             self.set_model(model)
         if detector != self.extractor.field_locator.detector_name:
             self.extractor.set_paddle_detector(detector)
+        # VLM всегда читает полный лист. auto добавляет проверку критичных полей,
+        # paddle проверяет все найденные поля, vlm отключает Paddle-проверку.
         use_field_crops = {"paddle": True, "vlm": False}.get(ocr_priority)
         raw = image_base64.split(",", 1)[-1]
         image_bytes = base64.b64decode(raw, validate=True)
 
         if not filename.lower().endswith(".pdf"):
-            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+            image = DocumentLoader.open_image(io.BytesIO(image_bytes))
             enhanced = DocumentLoader.preprocess_for_handwriting(image)
-            return self.extractor.extract_from_image(
+            return self._extract_page(
                 enhanced,
                 target_columns=target_columns,
                 pil_image=image,
@@ -123,7 +182,7 @@ class CompilerPipeline:
         logger.info("pdf: страниц=%d", len(pages))
         if len(pages) == 1:
             pil_image, enhanced = pages[0]
-            return self.extractor.extract_from_image(
+            return self._extract_page(
                 enhanced,
                 target_columns=target_columns,
                 pil_image=pil_image,
@@ -131,6 +190,17 @@ class CompilerPipeline:
             )
         # Многостраничный PDF = один ученик: значения полей объединяются по страницам.
         return self._extract_multipage(pages, target_columns)
+
+    def _extract_page(self, image_bytes: bytes, **kwargs) -> Dict[str, Any]:
+        """На границе конвейера ошибки ИИ всегда становятся исключениями."""
+        self._check_cancelled()
+        result = self.extractor.extract_from_image(image_bytes, **kwargs)
+        self._check_cancelled()
+        if not isinstance(result, dict) or not result:
+            raise RecognitionError("Модель не вернула корректные поля документа")
+        if result.get("error"):
+            raise RecognitionError(str(result["error"]))
+        return result
 
     def _rasterize_pdf_pages(self, image_bytes: bytes) -> List[Tuple[Image.Image, bytes]]:
         """Растеризует все страницы PDF в (оригинальный PIL, обработанные PNG-байты)."""
@@ -143,10 +213,8 @@ class CompilerPipeline:
             pages: List[Tuple[Image.Image, bytes]] = []
             matrix = pymupdf.Matrix(3, 3)
             for page in document:
-                pixmap = page.get_pixmap(matrix=matrix, alpha=False)
-                pil = Image.open(io.BytesIO(pixmap.tobytes("png"))).convert("RGB")
-                if pil.width * pil.height > config.MAX_IMAGE_PIXELS:
-                    raise ValueError(f"Страница PDF слишком большая: {pil.width}x{pil.height}")
+                self._check_cancelled()
+                pil = DocumentLoader.rasterize_page(page, matrix)
                 enhanced = DocumentLoader.preprocess_for_handwriting(pil)
                 pages.append((pil, enhanced))
         return pages
@@ -172,12 +240,19 @@ class CompilerPipeline:
         page_data: List[Dict[str, Any]] = []
         for index, (pil_image, enhanced) in enumerate(pages, start=1):
             logger.info("страница=%d распознавание", index)
-            page_data.append(self.extractor.extract_from_image(
-                enhanced,
-                target_columns=target_columns,
-                pil_image=None,
-                use_field_crops=False,
-            ))
+            try:
+                page_data.append(self._extract_page(
+                    enhanced,
+                    target_columns=target_columns,
+                    pil_image=None,
+                    use_field_crops=False,
+                    verification_skip_reason="multipage_disabled",
+                ))
+            except ExtractionCancelled:
+                raise
+            except Exception as exc:
+                # Нельзя экспортировать неполное заявление как успешно прочитанное.
+                raise RecognitionError(f"Не удалось распознать страницу {index} PDF: {exc}") from exc
         return self._merge_page_results(page_data)
 
     def _merge_page_results(self, pages_data: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -192,11 +267,12 @@ class CompilerPipeline:
         merged: Dict[str, Any] = {}
         meta: Dict[str, Any] = {}
         conflicts: Dict[str, List[Dict[str, Any]]] = {}
-        stats = {"tokens_total": 0, "elapsed": 0.0, "backend": "", "model": "", "speed": 0.0}
+        stats = {"tokens_total": 0, "elapsed": 0.0, "requests": 0, "backend": "", "model": "", "speed": 0.0}
 
         for page in pages_data:
             page_stats = page.get("_stats") or {}
             stats["tokens_total"] += page_stats.get("tokens_total", 0)
+            stats["requests"] += page_stats.get("requests", 0)
             stats["elapsed"] += page_stats.get("elapsed", 0.0)
             if page_stats.get("backend"):
                 stats["backend"] = page_stats["backend"]
@@ -253,6 +329,12 @@ class CompilerPipeline:
             ]
             merged[field] = chosen[1]
 
+        for field, field_meta in meta.items():
+            page_meta = (pages_data[field_meta["page"] - 1].get("_fields") or {}).get(field, {})
+            field_meta["verification"] = page_meta.get("verification", {
+                "status": "skipped", "reason": "multipage_disabled", "attempted": 0, "completed": 0,
+            })
+            field_meta["verified"] = bool(page_meta.get("verified")) and field_meta["status"] == "read"
         merged["_fields"] = meta
         merged["_stats"] = stats
         merged["_pdf_pages"] = len(pages_data)

@@ -10,8 +10,7 @@ TEST_SAMPLES_DIR.mkdir(exist_ok=True)
 
 OLLAMA_HOST = os.getenv("DOCIA_OLLAMA_HOST", "http://192.168.0.19:1234")
 DEFAULT_MODEL = os.getenv("DOCIA_MODEL", "qwen2.5-vl:7b")
-# По умолчанию разрешены только loopback и RFC1918-сети для локального LAN-сервера.
-ALLOWED_AI_NETWORKS = ["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+SILICONFLOW_HOST = "https://api.siliconflow.com"
 
 # --- Авторизация и развёртывание -------------------------------------
 # LAN-режим (несколько школьных ПК): компилятор слушает 0.0.0.0 и сам отдаёт
@@ -51,10 +50,19 @@ MAX_IMAGE_DIMENSION = 2800      # Высокое разрешение для м�
 # Optional local detector; unavailable engines fall back to VLM.
 USE_PADDLE_OCR = True
 FIELD_CROP_SCALE = 3.0
-# Полосовой режим требует настройки координат под конкретный шаблон.
-# По умолчанию сохраняем проверенный полный проход VLM с контекстом страницы.
+# Полный лист всегда сначала читает VLM. В режиме auto Paddle только находит
+# области критичных полей для независимой multi-view проверки той же VLM.
 USE_PADDLE_FIELD_CROPS = True
 USE_PADDLE_OCR_ASSIST = True
+PADDLE_VERIFY_FIELDS = (
+    "Дата подачи заявления",
+    "ФИО поступающего ученика",
+    "Дата рождения ребенка",
+    "ФИО родителя / заявителя",
+    "Паспортные данные",
+    "Контактный телефон",
+    "СНИЛС поступающего",
+)
 # Сохраняем проверенный слой форматирования после распознавания.
 USE_VALIDATOR = True
 USE_REFERENCE_DICTIONARY = True

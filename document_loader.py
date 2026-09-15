@@ -18,6 +18,25 @@ import config
 
 class DocumentLoader:
     @staticmethod
+    def check_image_size(width: int, height: int) -> None:
+        if width <= 0 or height <= 0 or width * height > config.MAX_IMAGE_PIXELS:
+            raise ValueError(f"Изображение слишком большое или некорректное: {width}x{height}")
+
+    @staticmethod
+    def open_image(source) -> Image.Image:
+        # Размер берётся из заголовка до декодирования, EXIF и RGB-конверсии.
+        with Image.open(source) as image:
+            DocumentLoader.check_image_size(image.width, image.height)
+            return ImageOps.exif_transpose(image).convert("RGB")
+
+    @staticmethod
+    def rasterize_page(page, matrix) -> Image.Image:
+        bounds = (page.rect * matrix).irect
+        DocumentLoader.check_image_size(bounds.width, bounds.height)
+        pixmap = page.get_pixmap(matrix=matrix, alpha=False, colorspace=pymupdf.csRGB)
+        return Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+
+    @staticmethod
     def load_document(file_path: Union[str, Path]) -> List[Tuple[Image.Image, bytes]]:
         """
         Загружает документ (изображение или PDF).
@@ -38,37 +57,22 @@ class DocumentLoader:
 
     @staticmethod
     def _load_single_image(path: Path) -> Tuple[Image.Image, bytes]:
-        image = Image.open(path)
-        image.verify()
-        image = Image.open(path)
-        image = ImageOps.exif_transpose(image)
-        if image.width * image.height > config.MAX_IMAGE_PIXELS:
-            raise ValueError(f"Изображение слишком большое: {image.width}x{image.height}")
-        if image.mode != "RGB":
-            image = image.convert("RGB")
-
+        image = DocumentLoader.open_image(path)
         enhanced_bytes = DocumentLoader.preprocess_for_handwriting(image)
         return image, enhanced_bytes
 
     @staticmethod
     def _load_pdf(path: Path) -> List[Tuple[Image.Image, bytes]]:
-        doc = pymupdf.open(path)
-        page_count = len(doc)
-        if page_count > config.MAX_PDF_PAGES:
-            doc.close()
-            raise ValueError(f"PDF содержит слишком много страниц: {page_count} (лимит {config.MAX_PDF_PAGES})")
-        pages = []
-        mat = pymupdf.Matrix(3.0, 3.0)  # ~150-200 DPI для четкости почерка
-        for page_num in range(len(doc)):
-            page = doc.load_page(page_num)
-            pix = page.get_pixmap(matrix=mat)
-            img_data = pix.tobytes("png")
-            pil_img = Image.open(io.BytesIO(img_data)).convert("RGB")
-            if pil_img.width * pil_img.height > config.MAX_IMAGE_PIXELS:
-                raise ValueError(f"Страница PDF слишком большая: {pil_img.width}x{pil_img.height}")
-            enhanced_bytes = DocumentLoader.preprocess_for_handwriting(pil_img)
-            pages.append((pil_img, enhanced_bytes))
-        doc.close()
+        with pymupdf.open(path) as doc:
+            page_count = len(doc)
+            if not page_count or page_count > config.MAX_PDF_PAGES:
+                raise ValueError(f"Недопустимое число страниц PDF: {page_count} (лимит {config.MAX_PDF_PAGES})")
+            pages = []
+            mat = pymupdf.Matrix(3.0, 3.0)
+            for page in doc:
+                pil_img = DocumentLoader.rasterize_page(page, mat)
+                enhanced_bytes = DocumentLoader.preprocess_for_handwriting(pil_img)
+                pages.append((pil_img, enhanced_bytes))
         return pages
 
     @staticmethod
@@ -264,3 +268,18 @@ class DocumentLoader:
         buffer = io.BytesIO()
         crop.save(buffer, format="PNG")
         return buffer.getvalue()
+
+    @staticmethod
+    def get_bbox_crop_views(image: Image.Image, box, scale: float = 2.0) -> List[bytes]:
+        """Return color, softly enhanced and high-contrast grayscale field views."""
+        original = DocumentLoader.get_bbox_crop(image, box, scale)
+        crop = Image.open(io.BytesIO(original)).convert("RGB")
+        enhanced = DocumentLoader.preprocess_for_handwriting_img(crop, auto_crop=False)
+        enhanced_buffer = io.BytesIO()
+        enhanced.save(enhanced_buffer, format="PNG")
+
+        grayscale = ImageOps.autocontrast(crop.convert("L"), cutoff=1)
+        grayscale = ImageEnhance.Contrast(grayscale).enhance(1.65)
+        grayscale_buffer = io.BytesIO()
+        grayscale.save(grayscale_buffer, format="PNG")
+        return [original, enhanced_buffer.getvalue(), grayscale_buffer.getvalue()]

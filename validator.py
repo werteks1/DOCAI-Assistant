@@ -61,21 +61,21 @@ class DataValidator:
     @staticmethod
     def format_phone(phone_raw: str) -> str:
         """
-        Приводит любой номер телефона к стандарту РФ: +7 (XXX) XXX-XX-XX.
-        Если цифр меньше 10, возвращает очищенную строку.
+        Форматирует одиночный номер РФ, сохраняя сложные записи без потерь.
         """
         if not phone_raw:
             return ""
 
-        digits = re.sub(r"\D", "", str(phone_raw))
+        text = str(phone_raw).strip()
+        if not re.fullmatch(r"\+?[\d ()\t.—–-]+", text):
+            return text
+        digits = re.sub(r"\D", "", text)
         if not digits:
             return phone_raw.strip()
 
         # Если начинается с 8 или 7 и всего 11 цифр
         if len(digits) == 11 and digits[0] in ("7", "8"):
             digits = digits[1:]
-        elif len(digits) > 11 and digits.startswith("7"):
-            digits = digits[1:11]
 
         if len(digits) == 10:
             code = digits[0:3]
@@ -87,6 +87,25 @@ class DataValidator:
         return phone_raw.strip()
 
     @staticmethod
+    def parse_date(date_raw: str) -> Optional[datetime.date]:
+        """Разбирает поддерживаемые форматы и проверяет существование даты."""
+        s = str(date_raw or "").strip()
+        iso = re.fullmatch(r"(\d{4})[-./](\d{1,2})[-./](\d{1,2})", s)
+        ru = re.fullmatch(r"(\d{1,2})[-./](\d{1,2})[-./](\d{2}|\d{4})", s)
+        if iso:
+            year, month, day = map(int, iso.groups())
+        elif ru:
+            day, month, year = map(int, ru.groups())
+            if len(ru.group(3)) == 2:
+                year += 2000 if year <= 35 else 1900
+        else:
+            return None
+        try:
+            return datetime.date(year, month, day)
+        except ValueError:
+            return None
+
+    @staticmethod
     def format_date(date_raw: str) -> str:
         """
         Приводит дату к стандарту ГОСТ (ДД.ММ.ГГГГ).
@@ -95,35 +114,10 @@ class DataValidator:
         if not date_raw:
             return ""
 
-        s = str(date_raw).strip()
-
-        # Шаблон 1: ГГГГ-ММ-ДД или ГГГГ.ММ.ДД
-        m_iso = re.match(r"^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$", s)
-        if m_iso:
-            year, month, day = int(m_iso.group(1)), int(m_iso.group(2)), int(m_iso.group(3))
-            try:
-                dt = datetime.date(year, month, day)
-                return dt.strftime("%d.%m.%Y")
-            except ValueError:
-                pass
-
-        # Шаблон 2: ДД-ММ-ГГГГ или ДД.ММ.ГГГГ или ДД/ММ/ГГГГ (или 2-значный год)
-        m_ru = re.match(r"^(\d{1,2})[-./](\d{1,2})[-./](\d{2,4})$", s)
-        if m_ru:
-            day, month, year_part = int(m_ru.group(1)), int(m_ru.group(2)), int(m_ru.group(3))
-            if year_part < 100:
-                # 2-значный год: 26 -> 2026, 95 -> 1995
-                year = 2000 + year_part if year_part <= 35 else 1900 + year_part
-            else:
-                year = year_part
-
-            try:
-                dt = datetime.date(year, month, day)
-                return dt.strftime("%d.%m.%Y")
-            except ValueError:
-                pass
-
-        return s
+        parsed = DataValidator.parse_date(date_raw)
+        if parsed is not None:
+            return f"{parsed.day:02d}.{parsed.month:02d}.{parsed.year:04d}"
+        return str(date_raw).strip()
 
     @staticmethod
     def cross_verify_dates(top_date_raw: str, bottom_date_raw: str) -> str:
@@ -418,7 +412,7 @@ class DataValidator:
             return DataValidator.format_date(val)
 
         if "фио" in fn:
-            return DataValidator.correct_fio(val)
+            return DataValidator.format_fio(val)
 
         if "паспорт" in fn:
             val = re.sub(r"\bрмсд\b", "РЖД", val, flags=re.IGNORECASE)
@@ -508,4 +502,3 @@ class DataValidator:
             return True, c_sur, p_sur, "Фамилии совпадают с учетом рода (муж./жен.)"
 
         return False, c_sur, p_sur, f"Фамилия ребенка ({c_sur}) отличается от фамилии родителя ({p_sur})"
-

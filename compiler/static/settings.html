@@ -55,12 +55,13 @@
   .card h2{margin:0 0 4px;font-size:16px;font-weight:800;letter-spacing:-.01em}
   .card .note{margin:0 0 15px;color:var(--muted);font-size:12px;line-height:1.45}
   label.lbl{display:block;margin:13px 0 5px;color:var(--muted);font-size:12px;font-weight:700}
-  input[type=text],input[type=password],input[type=number],select,textarea{
+  input[type=text],input[type=password],input[type=number],input[type=search],select,textarea{
     width:100%;padding:10px 12px;color:var(--ink);background:var(--field);
     border:1px solid #33445f;border-radius:9px;outline:none;font:inherit;font-size:13px;
   }
   input:focus,select:focus,textarea:focus{border-color:#6d98ff;box-shadow:0 0 0 3px rgba(91,133,255,.13)}
   input::placeholder,textarea::placeholder{color:#7b8cab}
+  .model-search{margin-bottom:7px;padding:9px 11px}
   .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:2px}
   .seg button{
     padding:10px 6px;color:#8394b0;background:rgba(13,20,33,.7);border:1px solid var(--line);
@@ -69,7 +70,9 @@
   .seg button small{display:block;margin-top:3px;color:#b9c9e4;font-size:12px;font-weight:600}
   .seg button.on{color:#fff;border-color:#648dff;background:linear-gradient(135deg,#3a63d6,#4c5ad6)}
   .seg button.on small{color:#e8eefb}
-  .row-opt{display:flex;align-items:center;gap:10px}
+  .row-opt{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 10px;margin-top:8px}
+  .check{display:flex;align-items:center;gap:7px;color:var(--faint);font-size:12px;font-weight:700;cursor:pointer}
+  .check input{width:auto;accent-color:#6d98ff}
   .range{display:flex;align-items:center;gap:12px}
   .range input[type=range]{flex:1;accent-color:#6d98ff;cursor:pointer}
   .range output{min-width:34px;text-align:right;color:#dce7fb;font-size:12px;font-weight:800}
@@ -112,6 +115,7 @@
   .toolbar input,.toolbar select{width:auto}
   .toolbar .grow{flex:1;min-width:150px}
   .user-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--line)}
+  .user-row.conn-active{padding-inline:10px;border-radius:10px;background:rgba(124,219,155,.06)}
   .user-name{color:#edf3ff;font-weight:800;font-size:13px;min-width:150px}
   .user-name small{display:block;color:var(--muted);font-weight:600;font-size:12px;margin-top:2px}
   .role-chip{padding:2px 9px;border-radius:99px;font-size:12px;font-weight:800}
@@ -120,6 +124,7 @@
   .flag-chip{padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700}
   .flag-chip.warnc{color:#ffe1a0;background:#3a2f12;border:1px solid #6b5620}
   .flag-chip.off{color:#a9b8d0;background:#232a38;border:1px solid #3b4559}
+  .flag-chip.on-chip{color:#c9f2d6;background:#16342a;border:1px solid #2c5a48}
   .row-actions{margin-left:auto;display:flex;flex-wrap:wrap;gap:6px}
   .tiny-btn{border:1px solid var(--line2);border-radius:8px;padding:6px 11px;background:#1a2942;color:#cbd8ed;font-size:12px;font-weight:700;cursor:pointer}
   .tiny-btn:hover{border-color:#6d98ff;color:#fff}
@@ -189,6 +194,7 @@
     <div class="statusbar" id="statusbar">
       <span id="conn"><span class="dot"></span>Статус…</span>
       <span class="chip">Сервер: <b id="stHost">—</b></span>
+      <span class="chip">Подключение: <b id="stConn">—</b></span>
       <span class="chip">Тип: <b id="stBackend">—</b></span>
       <span class="chip">Модель: <b id="stModel">—</b></span>
       <span class="chip">PaddleOCR: <b id="stPaddle">—</b></span>
@@ -203,40 +209,58 @@
 
     <div id="panelServer">
       <div class="grid">
+        <section class="card wide">
+          <h2>Подключения</h2>
+          <p class="note">Каждое подключение — это адрес сервера, API-ключ и выбранная модель. Список хранится в <b>settings.json</b>: добавьте рабочие серверы один раз и переключайтесь одним нажатием. Активно ровно одно подключение — на него уходят запросы распознавания. Для локальной обработки доступны Ollama и LM Studio. SiliconFlow, Google AI Studio (Gemini API), SeekAI и другие облака получают изображения документов, поэтому подключайте их только при допустимости передачи персональных данных.</p>
+          <div id="connList"><p class="empty">Загрузка…</p></div>
+          <div class="msg" id="msgConn"></div>
+        </section>
+
         <section class="card">
-          <h2>Сервер ИИ</h2>
-          <p class="note">Запросы будут уходить на выбранный адрес. Принимаются только локальные адреса и частные сети школы (localhost, 10.x, 172.16–31.x, 192.168.x) — облачные сервисы по политике 152-ФЗ не подключаются.</p>
+          <h2 id="connFormTitle">Добавить подключение</h2>
+          <p class="note" id="connFormNote">Вставьте адрес сервера и ключ. Полный адрес тоже подойдёт: хвост <code>/v1/chat/completions</code> отбрасывается автоматически.</p>
 
           <div class="seg" id="seg">
             <button type="button" data-prov="ollama">Ollama<small>порт 11434</small></button>
             <button type="button" data-prov="lmstudio">LM Studio<small>порт 1234</small></button>
+            <button type="button" data-prov="siliconflow">SiliconFlow<small>облачный API</small></button>
+            <button type="button" data-prov="google">Google AI Studio<small>Gemini API</small></button>
+            <button type="button" data-prov="seekai">SeekAI<small>облачный API</small></button>
             <button type="button" data-prov="openai">Другой сервер<small>OpenAI /v1</small></button>
           </div>
 
+          <label class="lbl" for="connName">Название (необязательно)</label>
+          <input type="text" id="connName" maxlength="60" spellcheck="false" placeholder="Например: LM Studio · кабинет 12"/>
+
           <label class="lbl" for="host">Адрес сервера</label>
           <input type="text" id="host" spellcheck="false" placeholder="http://127.0.0.1:1234"/>
-          <div class="hint">Без пути <code>/v1</code> — он добавляется автоматически. Пример: <code>http://192.168.0.19:1234</code></div>
+          <div class="hint">Пример: <code>https://api.siliconflow.com</code> или <code>http://192.168.0.19:1234</code></div>
 
-          <label class="lbl" for="apikey">API-ключ (только OpenAI-совместимые серверы; Ollama не требует)</label>
+          <label class="lbl" for="apikey">API-ключ (обязателен для облачных API: SiliconFlow, SeekAI; Ollama не требует)</label>
           <div class="keyline">
             <input type="password" id="apikey" spellcheck="false" autocomplete="off"/>
             <button type="button" class="icon-btn" id="showKey" title="Показать/скрыть">👁</button>
           </div>
           <div class="row-opt">
+            <label class="check" id="connActivateRow"><input type="checkbox" id="connActivate" checked/> Сделать активным</label>
             <button type="button" class="clear-key" id="removeKey" hidden>✕ Удалить сохранённый ключ</button>
           </div>
 
           <div class="actions">
-            <button type="button" class="secondary" id="btnCheck">Проверить и найти модели</button>
+            <button type="button" class="primary" id="btnAddConn">Добавить подключение</button>
+            <button type="button" class="secondary" id="btnCheck">Проверить адрес</button>
+            <button type="button" class="secondary" id="btnCancelEdit" hidden>Отменить изменение</button>
           </div>
-          <div class="msg" id="msgConn"></div>
+          <div class="msg" id="msgForm"></div>
         </section>
 
         <section class="card">
           <h2>Модель</h2>
-          <p class="note">Список моделей заполняется кнопкой «Проверить». Выбор применяется сразу и запоминается при сохранении.</p>
+          <p class="note">Список моделей обновляется сам: выберите адрес сервера или пресет — модели подтянутся автоматически (кнопка «Проверить» тоже работает). Выбор применяется сразу и запоминается в подключении.</p>
           <label class="lbl" for="model">Vision-модель на сервере</label>
+          <input type="search" id="modelSearch" class="model-search" placeholder="Поиск по названию модели…" spellcheck="false" aria-label="Поиск модели" hidden/>
           <select id="model"></select>
+          <div class="hint" id="modelSource"></div>
           <label class="lbl" for="temp">Температура: <span id="tempVal">0</span></label>
           <div class="range">
             <input type="range" id="temp" min="0" max="1" step="0.05" value="0"/>
@@ -265,7 +289,7 @@
 
         <section class="card wide">
           <div class="actions" style="margin-top:0">
-            <button type="button" class="primary" id="btnSave">Сохранить и применить настройки</button>
+            <button type="button" class="primary" id="btnSave">Сохранить параметры</button>
             <button type="button" class="danger secondary" id="btnReset">Сбросить к заводским</button>
             <span class="save-info" id="lsInfo">локальная копия формы в этом браузере</span>
           </div>
@@ -309,9 +333,12 @@ const TOKEN_KEY = "docai_token";
 const PRESETS = {
   ollama:  {label:"Ollama",  host:"http://127.0.0.1:11434"},
   lmstudio:{label:"LM Studio", host:"http://127.0.0.1:1234"},
+  siliconflow:{label:"SiliconFlow", host:"https://api.siliconflow.com"},
+  google:  {label:"Google AI Studio", host:"https://generativelanguage.googleapis.com"},
+  seekai:  {label:"SeekAI", host:"https://seekai.cc"},
   openai:  {label:"Другой OpenAI-сервер", host:""}
 };
-const LS_KEY = "docai_settings_form_v1";
+const LS_KEY = "docai_settings_form_v2";
 const $ = (id) => document.getElementById(id);
 
 let TOKEN = "";
@@ -538,24 +565,40 @@ function loadStats() {
   });
 }
 
-// --- Сервер и модель (логика как в отдельном окне настроек) --------------
+// --- Подключения, модель и параметры -------------------------------------
 const state = {
-  provider: detectProvider(""),
+  connections: [],
+  activeId: "",
+  limit: 20,
   hostEdited: false,
   apiKeyTouched: false,
   models: [],
   active: null,
+  editId: null,
   savedKeySet: false,
+  formModels: [],
+  probedHost: "",
+  probedBackend: "",
+  pendingModel: "",
+  modelQuery: "",
+  probeSeq: 0,
+  probeTimer: 0,
+  probeKey: "",
 };
 
 function detectProvider(host) {
   const h = (host || "").toLowerCase();
   if (h.includes(":11434")) return "ollama";
   if (h.includes(":1234")) return "lmstudio";
+  if (h.startsWith("https://api.siliconflow.com")) return "siliconflow";
+  if (h.includes("generativelanguage.googleapis.com")) return "google";
+  if (h.startsWith("https://seekai.cc")) return "seekai";
   return "openai";
 }
 function currentProvider() { return detectProvider($("host").value); }
 function normKey(s){ return (s||"").trim(); }
+function normHost(v){ return normKey(v).replace(/\/+$/, "").toLowerCase(); }
+function looksLikeAddress(v){ return /:\/\//.test(v) || v.includes(".") || v.includes("localhost"); }
 
 function renderSeg() {
   document.querySelectorAll("#seg button").forEach((btn) => {
@@ -564,17 +607,109 @@ function renderSeg() {
   });
   const needsKey = currentProvider() !== "ollama";
   $("apikey").parentElement.style.display = needsKey ? "" : "none";
-  $("removeKey").hidden = !(state.savedKeySet && !state.apiKeyTouched);
+  $("removeKey").hidden = !(state.editId && state.savedKeySet && !state.apiKeyTouched);
 }
 function setHost(v) { $("host").value = v || ""; renderSeg(); }
+
+function activeConn() { return state.connections.find((c) => c.active) || null; }
+
+function renderConnList() {
+  const box = $("connList");
+  if (!state.connections.length) {
+    box.innerHTML = "<p class='empty'>Подключений пока нет — добавьте первое на карточке справа.</p>";
+    return;
+  }
+  box.innerHTML = state.connections.map((c) => {
+    const connected = c.active && state.active && state.active.connected;
+    const chips =
+      (c.active ? '<span class="flag-chip on-chip">активно</span>' : "") +
+      (c.model ? '<span class="flag-chip">' + esc(c.model) + "</span>" : "") +
+      (c.api_key_set
+        ? '<span class="flag-chip off">ключ ' + esc(c.api_key_hint) + "</span>"
+        : '<span class="flag-chip off">без ключа</span>');
+    const actions =
+      (c.active ? "" : '<button class="tiny-btn" data-a="use" data-id="' + esc(c.id) + '">Подключить</button>') +
+      '<button class="tiny-btn" data-a="check" data-id="' + esc(c.id) + '">Проверить</button>' +
+      '<button class="tiny-btn" data-a="edit" data-id="' + esc(c.id) + '">Изменить</button>' +
+      '<button class="tiny-btn danger-btn" data-a="del" data-id="' + esc(c.id) + '">Удалить</button>';
+    return '<div class="user-row' + (c.active ? " conn-active" : "") + '">' +
+      '<span class="user-name"><span class="dot ' + (connected ? "ok" : (c.active ? "bad" : "")) + '"></span>' + esc(c.name) +
+      "<small>" + esc(c.host) + (c.active && state.active ? " · " + esc(state.active.backend || "") : "") + "</small></span>" +
+      chips + '<span class="row-actions">' + actions + "</span></div>";
+  }).join("");
+}
+
+function resetForm() {
+  state.editId = null;
+  state.apiKeyTouched = false;
+  state.savedKeySet = false;
+  state.hostEdited = false;
+  state.pendingModel = "";
+  state.modelQuery = "";
+  state.probeKey = "";
+  state.probeSeq += 1;
+  clearTimeout(state.probeTimer);
+  state.formModels = [];
+  state.probedHost = "";
+  state.probedBackend = "";
+  $("connName").value = "";
+  $("modelSearch").value = "";
+  setHost((activeConn() || {}).host || "");
+  $("apikey").value = "";
+  $("apikey").placeholder = "Не требуется (опционально)";
+  $("removeKey").hidden = true;
+  $("connActivate").checked = true;
+  $("connActivateRow").hidden = false;
+  $("connFormTitle").textContent = "Добавить подключение";
+  $("connFormNote").textContent = "Вставьте адрес сервера и ключ. Полный адрес тоже подойдёт: хвост /v1/chat/completions отбрасывается автоматически.";
+  $("btnAddConn").textContent = "Добавить подключение";
+  $("btnCancelEdit").hidden = true;
+  renderSeg();
+  fillModelSelect((state.active || {}).model);
+}
+
+function startEdit(id) {
+  const conn = state.connections.find((c) => c.id === id);
+  if (!conn) return;
+  state.editId = id;
+  state.apiKeyTouched = false;
+  state.savedKeySet = Boolean(conn.api_key_set);
+  state.hostEdited = false;
+  state.pendingModel = "";
+  state.modelQuery = "";
+  state.probeKey = "";
+  state.formModels = [];
+  state.probedHost = "";
+  state.probedBackend = "";
+  $("connName").value = conn.name;
+  $("modelSearch").value = "";
+  setHost(conn.host);
+  $("apikey").value = "";
+  $("apikey").placeholder = conn.api_key_set
+    ? "Сохранён (" + conn.api_key_hint + "). Введите новый или удалите."
+    : "Не требуется (опционально)";
+  $("removeKey").hidden = true;
+  $("connActivateRow").hidden = true;
+  $("connFormTitle").textContent = "Изменить подключение";
+  $("connFormNote").textContent = "Правка активного подключения переподключает его; остальные сохраняются без переключения.";
+  $("btnAddConn").textContent = "Сохранить изменения";
+  $("btnCancelEdit").hidden = false;
+  renderSeg();
+  fillModelSelect(conn.model);
+  scheduleAutoCheck(0);
+  $("host").focus();
+}
 
 function applySettings(s) {
   const saved = s.saved || {};
   const act = s.active || {};
   state.active = act;
-  state.savedKeySet = Boolean(saved.api_key_set);
+  state.connections = saved.connections || [];
+  state.activeId = saved.active_connection_id || "";
+  state.limit = saved.limit || 20;
   state.models = act.models || [];
-  if (!state.hostEdited) setHost((saved.host || act.host || ""));
+  const conn = activeConn();
+  if (!state.hostEdited && !state.editId) setHost(conn ? conn.host : (saved.host || act.host || ""));
 
   const p = Object.keys(saved.params || {}).length ? saved.params : (act.params || {});
   $("temp").value = (p.temperature == null ? 0 : p.temperature);
@@ -584,37 +719,135 @@ function applySettings(s) {
   $("sys").value = p.extra_system_prompt || "";
   syncParamsLabels();
 
-  if (state.savedKeySet) {
-    $("apikey").value = "";
-    $("apikey").placeholder = "Сохранён (" + (saved.api_key_hint || "•••") + "). Введите новый или удалите.";
+  if (state.editId) {
+    const editing = state.connections.find((c) => c.id === state.editId);
+    if (editing) {
+      state.savedKeySet = Boolean(editing.api_key_set);
+      $("apikey").placeholder = editing.api_key_set
+        ? "Сохранён (" + editing.api_key_hint + "). Введите новый или удалите."
+        : "Не требуется (опционально)";
+    } else {
+      resetForm();
+    }
   } else {
     $("apikey").placeholder = "Не требуется (опционально)";
   }
 
-  fillModelSelect(state.active && state.active.model);
+  renderConnList();
+  const editing = state.editId ? state.connections.find((c) => c.id === state.editId) : null;
+  fillModelSelect((editing && editing.model) || act.model);
   updateStatus(act);
   renderSeg();
 }
 
-function fillModelSelect(currentModel) {
+function formModelList() {
+  const host = normHost($("host").value);
+  return host && host === state.probedHost ? state.formModels : null;
+}
+
+function rememberProbe(host, info) {
+  state.probedHost = normHost(host);
+  state.probedBackend = info.backend || "";
+  state.formModels = (info.models || []).slice();
+}
+
+function applyProbe(host, info) {
+  if (info.connected) {
+    rememberProbe(host, info);
+    fillModelSelect(state.pendingModel || info.model);
+  } else {
+    state.probedHost = normHost(host);
+    state.probedBackend = "";
+    state.formModels = [];
+    fillModelSelect(null);
+  }
+}
+
+function scheduleAutoCheck(delay) {
+  clearTimeout(state.probeTimer);
+  state.probeTimer = setTimeout(runAutoCheck, delay == null ? 650 : delay);
+}
+
+async function runAutoCheck() {
+  const host = normKey($("host").value);
+  if (!host || !looksLikeAddress(host)) return;
+  const key = state.apiKeyTouched ? normKey($("apikey").value) : null;
+  const requestKey = [normHost(host), state.editId || "", key === null ? "" : key].join("|");
+  if (requestKey === state.probeKey) return;
+  state.probeKey = requestKey;
+  const seq = ++state.probeSeq;
+  const msg = $("msgForm");
+  try {
+    const body = { host: host };
+    if (state.editId) body.id = state.editId;
+    if (key !== null) body.api_key = key;
+    const info = await api("/api/connections/check", body);
+    if (seq !== state.probeSeq) return;
+    applyProbe(host, info);
+    if (info.connected) {
+      showMsg(msg, "Адрес доступен: " + (info.backend || "ИИ") + ", моделей найдено: " +
+              (info.models || []).length + ". Список моделей обновлён.", "ok");
+    } else {
+      showMsg(msg, "Сервер не ответил: список моделей не обновлён. Проверьте адрес и ключ.", "warn");
+    }
+  } catch (err) {
+    if (seq !== state.probeSeq) return;
+    state.probedHost = normHost(host);
+    state.probedBackend = "";
+    state.formModels = [];
+    fillModelSelect(null);
+    showMsg(msg, "Список моделей не обновлён: " + err.message, "warn");
+  }
+}
+
+function modelList() {
+  const own = formModelList();
+  return own === null ? state.models : own;
+}
+
+function modelSourceText() {
+  if (formModelList() !== null) {
+    return "Модели адреса " + normKey($("host").value) +
+      (state.probedBackend ? " (" + state.probedBackend + ")" : "") + " — обновились автоматически.";
+  }
+  if (state.active && state.active.connected) {
+    return "Модели активного подключения" +
+      (state.active.connection ? " «" + state.active.connection + "»" : "") + ".";
+  }
+  return "Выберите адрес сервера — список моделей обновится автоматически.";
+}
+
+function renderModelOptions(preferred) {
   const sel = $("model");
+  const all = modelList();
+  const search = $("modelSearch");
+  search.hidden = all.length <= 8;
+  const query = state.modelQuery.trim();
+  const list = query ? all.filter((m) => m.toLowerCase().includes(query.toLowerCase())) : all;
+  $("modelSource").textContent = modelSourceText() +
+    (query ? " Найдено " + list.length + " из " + all.length + "." : "");
   sel.innerHTML = "";
-  if (!state.models.length) {
+  if (!list.length) {
     const opt = document.createElement("option");
-    opt.textContent = "Модели не найдены — проверьте сервер";
     opt.value = "";
+    opt.textContent = all.length ? "Ничего не найдено — измените запрос" : "Модели не найдены — проверьте сервер";
     sel.appendChild(opt);
     sel.disabled = true;
     return;
   }
   sel.disabled = false;
-  state.models.forEach((m) => {
+  list.forEach((m) => {
     const opt = document.createElement("option");
     opt.value = m; opt.textContent = m;
     sel.appendChild(opt);
   });
-  if (currentModel && state.models.includes(currentModel)) sel.value = currentModel;
-  else sel.value = state.models[0];
+  const wanted = preferred || state.pendingModel || "";
+  if (wanted && list.includes(wanted)) sel.value = wanted;
+  else sel.value = list[0];
+}
+
+function fillModelSelect(currentModel) {
+  renderModelOptions(currentModel);
 }
 
 function updateStatus(act) {
@@ -623,6 +856,7 @@ function updateStatus(act) {
   conn.firstElementChild.className = "dot " + (ok ? "ok" : "bad");
   conn.childNodes[1].textContent = " " + (ok ? "Сервер доступен" : act ? "Сервер недоступен" : "Нет данных");
   $("stHost").textContent = (act && act.host) || "—";
+  $("stConn").textContent = (activeConn() || {}).name || "по умолчанию";
   $("stBackend").textContent = (act && act.backend) || "—";
   $("stModel").textContent = (act && act.model) || "—";
   $("stPaddle").textContent = act ? (act.paddle_available ? "доступен" : "нет (VLM)") : "—";
@@ -648,19 +882,12 @@ function collectParams() {
   };
 }
 
-function apiKeyToSend() {
-  if (state.apiKeyTouched) return normKey($("apikey").value);
-  return null;
-}
-
 function rememberLocal() {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
-      host: $("host").value, provider: currentProvider(),
+      name: $("connName").value, host: $("host").value, provider: currentProvider(),
       temp: $("temp").value, topp: $("topp").value, maxtok: $("maxtok").value,
       timeout: $("timeout").value, sys: $("sys").value,
-      apiKeyTouched: state.apiKeyTouched,
-      apiKey: state.apiKeyTouched ? $("apikey").value : "",
     }));
   } catch (e) { /* приватный режим */ }
 }
@@ -670,13 +897,13 @@ function restoreLocal() {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return false;
     const f = JSON.parse(raw);
+    if (f.name) $("connName").value = f.name;
     if (f.host) setHost(f.host);
     if (f.temp != null) $("temp").value = f.temp;
     if (f.topp != null) $("topp").value = f.topp;
     if (f.maxtok != null) $("maxtok").value = f.maxtok;
     if (f.timeout != null) $("timeout").value = f.timeout;
     if (f.sys != null) $("sys").value = f.sys;
-    if (f.apiKeyTouched) { state.apiKeyTouched = true; $("apikey").value = f.apiKey || ""; }
     syncParamsLabels();
     return true;
   } catch (e) { return false; }
@@ -705,18 +932,23 @@ $("seg").addEventListener("click", (e) => {
     if (prov === "openai") $("host").focus();
   }
   renderSeg();
+  scheduleAutoCheck(0);
 });
 
 $("host").addEventListener("input", () => {
   state.hostEdited = true;
   renderSeg();
   rememberLocal();
+  scheduleAutoCheck();
 });
+
+$("connName").addEventListener("input", () => rememberLocal());
 
 $("apikey").addEventListener("input", () => {
   state.apiKeyTouched = true;
   $("removeKey").hidden = true;
   rememberLocal();
+  scheduleAutoCheck(900);
 });
 
 $("showKey").addEventListener("click", () => {
@@ -728,7 +960,6 @@ $("removeKey").addEventListener("click", () => {
   $("apikey").value = "";
   state.apiKeyTouched = true;
   $("removeKey").hidden = true;
-  rememberLocal();
 });
 
 ["temp","topp"].forEach((id) => {
@@ -739,58 +970,157 @@ $("removeKey").addEventListener("click", () => {
 });
 $("sys").addEventListener("input", () => rememberLocal());
 
+$("modelSearch").addEventListener("input", () => {
+  state.modelQuery = $("modelSearch").value;
+  renderModelOptions();
+});
+
 $("model").addEventListener("change", async () => {
   const m = $("model").value;
   if (!m) return;
+  state.pendingModel = m;
+  const msg = $("msgMain");
+  const formHost = normHost($("host").value);
+  const editing = state.editId ? state.connections.find((c) => c.id === state.editId) : null;
   try {
-    await api("/api/model", { model: m });
-    state.active.model = m;
-    showMsg($("msgMain"), "Модель «" + m + "» применена. Нажмите «Сохранить», чтобы запомнить.", "ok");
+    if (editing && normHost(editing.host) === formHost) {
+      const res = await api("/api/connections/" + encodeURIComponent(state.editId), { model: m });
+      applySettings(res);
+      showMsg(msg, "Модель «" + m + "» сохранена в подключении «" + editing.name + "».", "ok");
+      return;
+    }
+    if (!state.editId && formHost === normHost((state.active || {}).host || "")) {
+      await api("/api/model", { model: m });
+      const conn = activeConn();
+      if (conn) conn.model = m;
+      state.active.model = m;
+      renderConnList();
+      showMsg(msg, "Модель «" + m + "» применена и запомнена в подключении.", "ok");
+      return;
+    }
+    showMsg(msg, "Модель «" + m + "» применится, когда подключение станет активным.", "ok");
   } catch (err) {
-    showMsg($("msgMain"), "Не удалось применить модель: " + err.message, "err");
+    showMsg(msg, "Не удалось применить модель: " + err.message, "err");
   }
+});
+
+// --- Подключения: список -------------------------------------------------
+$("connList").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-a]");
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const conn = state.connections.find((c) => c.id === id) || {};
+  const msg = $("msgConn");
+  if (btn.dataset.a === "edit") { startEdit(id); return; }
+  if (btn.dataset.a === "del") {
+    if (!confirm("Удалить подключение «" + conn.name + "»? Если оно активно, система переключится на другое доступное.")) return;
+    btn.disabled = true;
+    try {
+      const res = await api("/api/connections/" + encodeURIComponent(id), undefined, "DELETE");
+      applySettings(res);
+      showMsg(msg, res.warning || "Подключение удалено.", res.warning ? "warn" : "ok");
+    } catch (err) { showMsg(msg, err.message, "err"); }
+    return;
+  }
+  btn.disabled = true;
+  try {
+    if (btn.dataset.a === "use") {
+      const res = await api("/api/connections/" + encodeURIComponent(id) + "/activate", {});
+      applySettings(res);
+      showMsg(msg, "Активно подключение «" + conn.name + "».", "ok");
+    } else if (btn.dataset.a === "check") {
+      const info = await api("/api/connections/check", { id: id, host: conn.host });
+      if (info.connected) {
+        showMsg(msg, "«" + conn.name + "» доступно: " + (info.backend || "ИИ") +
+                     ", моделей найдено: " + (info.models || []).length + ".", "ok");
+      } else {
+        showMsg(msg, "«" + conn.name + "» не ответило. Проверьте адрес, ключ и доступность сервера.", "err");
+      }
+    }
+  } catch (err) {
+    showMsg(msg, err.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// --- Подключения: форма --------------------------------------------------
+$("btnCancelEdit").addEventListener("click", () => {
+  resetForm();
+  showMsg($("msgForm"), "Изменение отменено.", "");
 });
 
 $("btnCheck").addEventListener("click", async () => {
   const host = normKey($("host").value);
-  if (!host) { showMsg($("msgConn"), "Введите адрес сервера.", "err"); return; }
+  const msg = $("msgForm");
+  if (!host) { showMsg(msg, "Введите адрес сервера.", "err"); return; }
   const btn = $("btnCheck"); btn.disabled = true;
   btn.textContent = "Проверка…";
-  showMsg($("msgConn"), "Подключение к " + host + "…", "");
   try {
-    const info = await api("/api/connect", { host: host, api_key: apiKeyToSend() });
-    if (!info.connected) {
-      showMsg($("msgConn"), "Сервер по адресу " + info.host + " не ответил. Проверьте, что он запущен, и повторите.", "err");
+    const body = { host: host };
+    if (state.editId) body.id = state.editId;
+    if (state.apiKeyTouched) body.api_key = normKey($("apikey").value);
+    state.probeKey = [normHost(host), state.editId || "", state.apiKeyTouched ? normKey($("apikey").value) : ""].join("|");
+    state.probeSeq += 1;
+    const info = await api("/api/connections/check", body);
+    applyProbe(host, info);
+    if (info.connected) {
+      showMsg(msg, "Адрес доступен: " + (info.backend || "ИИ") +
+                   ", моделей найдено: " + (info.models || []).length + ". Список моделей обновлён.", "ok");
     } else {
-      state.models = info.models || [];
-      state.active = Object.assign({}, state.active, { host: info.host, backend: info.backend, model: info.model, connected: true });
-      fillModelSelect(info.model);
-      showMsg($("msgConn"), "Подключено: " + (info.backend || "ИИ") + ", моделей найдено: " + (info.models || []).length + ".", "ok");
+      showMsg(msg, "Сервер не ответил. Проверьте адрес, ключ и доступность сервера.", "err");
     }
-    updateStatus(state.active);
-    renderSeg();
   } catch (err) {
-    showMsg($("msgConn"), err.message, "err");
+    showMsg(msg, err.message, "err");
   } finally {
-    btn.disabled = false; btn.textContent = "Проверить и найти модели";
+    btn.disabled = false; btn.textContent = "Проверить адрес";
+  }
+});
+
+$("btnAddConn").addEventListener("click", async () => {
+  const host = normKey($("host").value);
+  const msg = $("msgForm");
+  if (!host) { showMsg(msg, "Введите адрес сервера.", "err"); return; }
+  const key = state.apiKeyTouched ? normKey($("apikey").value) : null;
+  const model = state.pendingModel;
+  const btn = $("btnAddConn"); btn.disabled = true;
+  try {
+    let res;
+    if (state.editId) {
+      const body = { name: $("connName").value.trim(), host: host };
+      if (key !== null) body.api_key = key;
+      if (model) body.model = model;
+      res = await api("/api/connections/" + encodeURIComponent(state.editId), body);
+    } else {
+      const body = {
+        name: $("connName").value.trim(),
+        host: host,
+        api_key: normKey($("apikey").value),
+        activate: $("connActivate").checked,
+      };
+      if (model) body.model = model;
+      res = await api("/api/connections", body);
+    }
+    const wasEdit = Boolean(state.editId);
+    applySettings(res);
+    resetForm();
+    rememberLocal();
+    showMsg(msg, res.warning || (wasEdit ? "Подключение сохранено." : "Подключение добавлено."),
+            res.warning ? "warn" : "ok");
+  } catch (err) {
+    showMsg(msg, err.message, "err");
+  } finally {
+    btn.disabled = false;
   }
 });
 
 $("btnSave").addEventListener("click", async () => {
-  const host = normKey($("host").value);
-  if (!host) { showMsg($("msgMain"), "Укажите адрес сервера ИИ.", "err"); return; }
   const btn = $("btnSave"); btn.disabled = true;
   try {
-    const res = await api("/api/settings", {
-      host: host,
-      model: $("model").disabled ? null : ($("model").value || null),
-      api_key: apiKeyToSend(),
-      params: collectParams(),
-    });
-    state.apiKeyTouched = false;
+    const res = await api("/api/settings", { params: collectParams() });
     applySettings(res);
-    state.hostEdited = false;
-    showMsg($("msgMain"), "Настройки сохранены в settings.json и применены. Адрес: " + res.active.host, "ok");
+    showMsg($("msgMain"), res.warning || "Параметры сохранены в settings.json.",
+            res.warning ? "warn" : "ok");
     rememberLocal();
   } catch (err) {
     showMsg($("msgMain"), err.message, "err");
@@ -800,13 +1130,12 @@ $("btnSave").addEventListener("click", async () => {
 });
 
 $("btnReset").addEventListener("click", async () => {
-  if (!confirm("Сбросить все настройки к заводским? Файл settings.json будет удалён, сервер ИИ — адрес по умолчанию.")) return;
+  if (!confirm("Сбросить все настройки к заводским? Файл settings.json будет удалён вместе со списком подключений, сервер ИИ — адрес по умолчанию.")) return;
   const btn = $("btnReset"); btn.disabled = true;
   try {
     await api("/api/settings/reset", {});
-    state.apiKeyTouched = false; state.hostEdited = false;
-    $("apikey").value = "";
     await load();
+    resetForm();
     showMsg($("msgMain"), "Настройки сброшены к заводским значениям.", "ok");
   } catch (err) {
     showMsg($("msgMain"), "Не удалось сбросить: " + err.message, "err");
