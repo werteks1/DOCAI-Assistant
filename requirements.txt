@@ -1,9 +1,13 @@
-# Прямые зависимости веб-пути DocAI Assistant — версии зафиксированы точно (==),
-# чтобы окружение собиралось одинаково на разных машинах.
-# Снято с рабочего окружения: Python 3.14.7, 2026-09-06.
+# Единый файл зависимостей DocAI Assistant — ставится одной командой:
+#   pip install -r requirements.txt
 #
-# OCR-детектор PP-OCRv6 (PaddlePaddle/PaddleOCR) НЕ входит в этот файл:
-# платформенные сборки ставятся отдельно — см. requirements-ocr.txt.
+# Версии прямых зависимостей зафиксированы точно (==), чтобы окружение
+# собиралось одинаково на разных машинах.
+#
+# OCR-детектор PP-OCRv6 (PaddleOCR) подключается отсюда же, но готовые сборки
+# PaddlePaddle есть только под Python 3.10–3.12: на 3.13+ эти строки pip
+# пропускает автоматически, и API работает полным проходом VLM.
+# Для сервера с OCR рекомендуется Python 3.12.
 ollama==0.6.2
 openpyxl==3.1.5
 pandas==3.0.5
@@ -13,3 +17,7 @@ pydantic==2.13.5
 requests==2.34.2
 httpx==0.28.1
 numpy==2.3.5
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+paddleocr>=3.3,<4; python_version >= "3.10" and python_version < "3.13"
+paddlepaddle>=3.2,<4; python_version >= "3.10" and python_version < "3.13"

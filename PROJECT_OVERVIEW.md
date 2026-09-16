@@ -135,7 +135,7 @@ graph TD
 
 ## 5. Технический стек
 
-* **Язык бэкенда:** Python 3.10–3.14 (зависимости зафиксированы в `requirements.txt` и `requirements-web.txt`).
+* **Язык бэкенда:** Python 3.10–3.14 (все зависимости — в одном `requirements.txt`; PaddleOCR ставится на 3.10–3.12).
 * **Фреймворк API:** FastAPI 0.115 + Uvicorn.
 * **База данных:** SQLite 3 (WAL mode, встроенная, без внешних СУБД).
 * **Фронтенд:** React 18, Vite, нативный CSS.
