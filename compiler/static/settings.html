@@ -301,7 +301,7 @@
     <div id="panelUsers" hidden>
       <section class="card">
         <h2>Пользователи</h2>
-        <p class="note">Создавайте учётные записи операторов (работа с документами) и дополнительных администраторов. У новых учётных записей при первом входе будет запрошена смена пароля.</p>
+        <p class="note">Создавайте учётные записи операторов (работа с документами) и дополнительных администраторов. По умолчанию при первом входе запрашивается смена временного пароля — снимите галочку, если учётная запись должна работать сразу.</p>
         <div class="toolbar">
           <input class="grow" type="text" id="uName" placeholder="Логин" spellcheck="false"/>
           <input type="password" id="uPass" placeholder="Пароль (мин. 4 символа)" autocomplete="new-password"/>
@@ -309,6 +309,7 @@
             <option value="operator">Пользователь</option>
             <option value="admin">Администратор</option>
           </select>
+          <label class="check" title="Пользователь сменит временный пароль при первом входе. Снимите галочку, чтобы учётная запись работала сразу с выданным паролем"><input type="checkbox" id="uMustChange" checked/> Смена пароля при входе</label>
           <button type="button" class="primary" id="uCreate">Создать учётку</button>
         </div>
         <div class="msg" id="msgUsers"></div>
@@ -527,10 +528,12 @@ $("uCreate").addEventListener("click", async () => {
   const name = $("uName").value.trim();
   const pass = $("uPass").value;
   if (!name || pass.length < 4) { showMsg(msg, "Укажите логин и пароль не короче 4 символов.", "err"); return; }
+  const mustChange = $("uMustChange").checked;
   try {
-    const created = await api("/api/users", { username: name, password: pass, role: $("uRole").value, must_change: true });
+    const created = await api("/api/users", { username: name, password: pass, role: $("uRole").value, must_change: mustChange });
     $("uName").value = ""; $("uPass").value = "";
-    showMsg(msg, "Учётная запись «" + created.username + "» создана. При первом входе потребуется смена пароля.", "ok");
+    showMsg(msg, "Учётная запись «" + created.username + "» создана. " +
+      (mustChange ? "При первом входе потребуется смена пароля." : "Пароль менять не потребуется — можно работать сразу."), "ok");
     loadUsers();
   } catch (err) { showMsg(msg, err.message, "err"); }
 });

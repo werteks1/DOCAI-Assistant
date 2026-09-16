@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import settings_store
@@ -958,3 +958,30 @@ if config.WEB_DIST_DIR.exists():
 else:
     logger.info("web/dist не найден (%s) — фронтенд ожидается на Vite :5173",
                 config.WEB_DIST_DIR)
+
+    # Без собранного фронтенда корень отдавал бы голый 404, и это выглядело
+    # как «у пользователя нет прав». Показываем, что именно нужно сделать.
+    _NOT_BUILT_PAGE = """<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DocAI Assistant — интерфейс не собран</title>
+<style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f172a;color:#e2e8f0;
+font:16px/1.55 -apple-system,Segoe UI,Roboto,sans-serif}
+div{max-width:34rem;padding:2rem;background:#1b2436;border:1px solid #2c3a52;border-radius:14px}
+h1{margin:0 0 .75rem;font-size:1.3rem}p{margin:.6rem 0}code{background:#0f172a;padding:.15rem .4rem;border-radius:6px}
+a{color:#7cb3ff}
+</style></head><body><div>
+<h1>Интерфейс не собран</h1>
+<p>Сервер работает, но папки <code>web/dist</code> нет, поэтому рабочее окно оцифровки
+отдать нечем. Это не про права доступа — интерфейс просто не собран.</p>
+<p>На Windows достаточно запустить <code>start.bat</code>: он соберёт интерфейс сам.
+Вручную: <code>cd web</code>, затем <code>npm install</code> и <code>npm run build</code>,
+после чего перезапустите сервер.</p>
+<p>Консоль администратора доступна уже сейчас: <a href="/settings">/settings</a>.</p>
+</div></body></html>"""
+
+    @app.get("/", include_in_schema=False)
+    def web_not_built() -> HTMLResponse:
+        """Понятная заглушка вместо 404, когда web/dist ещё не собран."""
+        return HTMLResponse(_NOT_BUILT_PAGE, status_code=503)

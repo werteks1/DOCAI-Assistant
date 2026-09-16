@@ -272,5 +272,40 @@ class ProcessingAndAccessTests(unittest.TestCase):
                 self.assertFalse(auth_store.log_activity.call_args.kwargs["ok"])
 
 
+class WebDistFallbackTests(unittest.TestCase):
+    """Корень без собранного web/dist объясняет причину, а не выглядит как «нет прав»."""
+
+    def _load_api(self, dist: Path, suffix: str):
+        spec = importlib.util.spec_from_file_location(
+            f"compiler._dist_api_{suffix}",
+            Path(__file__).resolve().parents[1] / "compiler" / "api.py",
+        )
+        module = importlib.util.module_from_spec(spec)
+        with patch.object(config, "WEB_DIST_DIR", dist), \
+                patch("compiler.settings_store.load_settings", return_value={}), \
+                patch("compiler.pipeline.CompilerPipeline", return_value=test_pipeline()), \
+                patch("compiler.auth_store.init_db"):
+            spec.loader.exec_module(module)
+        return module
+
+    def test_missing_dist_returns_build_hint_not_404(self):
+        with tempfile.TemporaryDirectory() as directory:
+            module = self._load_api(Path(directory) / "dist", "missing")
+            response = TestClient(module.app).get("/")
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("Интерфейс не собран", response.text)
+        self.assertIn("start.bat", response.text)
+
+    def test_built_dist_is_served_from_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dist = Path(directory) / "dist"
+            dist.mkdir()
+            (dist / "index.html").write_text("<h1>DocAI</h1>", encoding="utf-8")
+            module = self._load_api(dist, "built")
+            response = TestClient(module.app).get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("DocAI", response.text)
+
+
 if __name__ == "__main__":
     unittest.main()
