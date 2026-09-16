@@ -11,11 +11,13 @@ from unittest.mock import Mock, patch
 
 import openpyxl
 import pymupdf
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from PIL import Image
 
 import config
 from compiler import auth_store
+from compiler.auth import enforce_change
 from compiler.jobs import DONE, ERROR, RUNNING, EXTRACTION_LOCK, Job, JobItem, JobStore
 from compiler.models import BatchExtractRequest
 from compiler.pipeline import CompilerPipeline, RecognitionError
@@ -38,7 +40,7 @@ def image_payload():
     return base64.b64encode(buffer.getvalue()).decode()
 
 
-class LoginProtectionTests(unittest.TestCase):
+class AuthStoreTestCase(unittest.TestCase):
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
@@ -51,6 +53,8 @@ class LoginProtectionTests(unittest.TestCase):
         self.addCleanup(failures.stop)
         auth_store.init_db()
 
+
+class LoginProtectionTests(AuthStoreTestCase):
     def test_case_variants_share_lockout_including_cyrillic(self):
         auth_store.create_user("Оператор", "secret", "operator")
         for name in ("admin", "Оператор"):
@@ -71,6 +75,31 @@ class LoginProtectionTests(unittest.TestCase):
         self.assertTrue(auth_store.verify_login("Оператор", "secret").locked)
         auth_store.set_password(user["id"], "changed")
         self.assertIsNotNone(auth_store.verify_login("ОПЕРАТОР", "changed").user)
+
+
+class MustChangePolicyTests(AuthStoreTestCase):
+    def test_operator_created_without_flag_works_immediately(self):
+        user = auth_store.create_user("operator1", "secret", "operator")
+        self.assertFalse(user["must_change"])
+
+    def test_admin_created_without_flag_must_change_password(self):
+        user = auth_store.create_user("second_admin", "secret", "admin")
+        self.assertTrue(user["must_change"])
+
+    def test_startup_clears_operator_flag_and_keeps_admin_flag(self):
+        auth_store.create_user("old_operator", "secret", "operator", must_change=True)
+        auth_store.create_user("old_admin", "secret", "admin", must_change=True)
+        auth_store.init_db()
+        users = {user["username"]: user for user in auth_store.list_users()}
+        self.assertFalse(users["old_operator"]["must_change"])
+        self.assertTrue(users["old_admin"]["must_change"])
+
+    def test_enforce_change_blocks_until_temporary_password_replaced(self):
+        with self.assertRaises(HTTPException) as blocked:
+            enforce_change({"role": "admin", "must_change": True})
+        self.assertEqual(blocked.exception.status_code, 403)
+        self.assertFalse(enforce_change({"role": "admin", "must_change": False})["must_change"])
+        self.assertFalse(enforce_change({"role": "operator", "must_change": False})["must_change"])
 
 
 class ProcessingAndAccessTests(unittest.TestCase):

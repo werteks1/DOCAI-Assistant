@@ -136,9 +136,18 @@ def init_db() -> None:
         conn.executescript(_SCHEMA)
         conn.commit()
         _purge_expired_sessions(conn)
+        _clear_operator_must_change(conn)
         _seed_admin_if_empty(conn)
     finally:
         conn.close()
+
+
+def _clear_operator_must_change(conn: sqlite3.Connection) -> None:
+    """Смена пароля при первом входе остаётся только у администраторов."""
+    conn.execute(
+        "UPDATE users SET must_change = 0 WHERE must_change = 1 AND role != 'admin'"
+    )
+    conn.commit()
 
 
 def _seed_admin_if_empty(conn: sqlite3.Connection) -> None:
@@ -225,8 +234,14 @@ def _username_ok(username: str) -> bool:
     )
 
 
-def create_user(username: str, password: str, role: str, must_change: bool = True) -> Dict[str, Any]:
-    """Создаёт учётку. Raises ValueError при некорректных данных или дубле."""
+def create_user(
+    username: str, password: str, role: str, must_change: Optional[bool] = None
+) -> Dict[str, Any]:
+    """Создаёт учётку. Raises ValueError при некорректных данных или дубле.
+
+    Без явного `must_change` смена пароля при первом входе включается только
+    администраторам: операторы работают сразу с выданным паролем.
+    """
     username = (username or "").strip()
     if not _username_ok(username):
         raise ValueError(
@@ -236,6 +251,8 @@ def create_user(username: str, password: str, role: str, must_change: bool = Tru
         raise ValueError("Пароль слишком короткий — минимум 4 символа.")
     if role not in ("admin", "operator"):
         raise ValueError("Роль должна быть admin или operator.")
+    if must_change is None:
+        must_change = role == "admin"
     conn = _connect()
     try:
         if _find_user_row(conn, username) is not None:

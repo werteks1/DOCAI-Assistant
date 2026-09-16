@@ -179,7 +179,7 @@ class UserCreateRequest(BaseModel):
     username: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=4, max_length=256)
     role: Literal["admin", "operator"] = "operator"
-    must_change: bool = True
+    must_change: Optional[bool] = None
 
 
 class UserResetPasswordRequest(BaseModel):

@@ -158,12 +158,6 @@
         <div class="auth-error" id="loginErr" hidden></div>
         <button type="submit" class="primary auth-submit" id="loginBtn">Войти</button>
       </form>
-      <div id="deniedBox" hidden>
-        <div class="auth-brand">DOCAI · ДОСТУП ОГРАНИЧЕН</div>
-        <h1 style="margin:0">Только для администратора</h1>
-        <p class="auth-note">Ваша учётная запись не является администратором. Обработка документов выполняется в основном окне, а эта страница служит консолью администратора.</p>
-        <a class="secondary" style="text-decoration:none;display:inline-block" href="/">← В основное окно</a>
-      </div>
       <div id="mustBox" hidden>
         <div class="auth-brand">DOCAI · ПЕРВЫЙ ВХОД</div>
         <h1 style="margin:0">Сначала смените пароль</h1>
@@ -301,7 +295,7 @@
     <div id="panelUsers" hidden>
       <section class="card">
         <h2>Пользователи</h2>
-        <p class="note">Создавайте учётные записи операторов (работа с документами) и дополнительных администраторов. По умолчанию при первом входе запрашивается смена временного пароля — снимите галочку, если учётная запись должна работать сразу.</p>
+        <p class="note">Создавайте учётные записи операторов (работа с документами) и дополнительных администраторов. Пользователь работает сразу с выданным паролем; администратору при первом входе предлагается сменить временный пароль.</p>
         <div class="toolbar">
           <input class="grow" type="text" id="uName" placeholder="Логин" spellcheck="false"/>
           <input type="password" id="uPass" placeholder="Пароль (мин. 4 символа)" autocomplete="new-password"/>
@@ -309,7 +303,6 @@
             <option value="operator">Пользователь</option>
             <option value="admin">Администратор</option>
           </select>
-          <label class="check" title="Пользователь сменит временный пароль при первом входе. Снимите галочку, чтобы учётная запись работала сразу с выданным паролем"><input type="checkbox" id="uMustChange" checked/> Смена пароля при входе</label>
           <button type="button" class="primary" id="uCreate">Создать учётку</button>
         </div>
         <div class="msg" id="msgUsers"></div>
@@ -386,7 +379,6 @@ function showView(name) {
 function showAuth(kind) {
   showView("auth");
   $("loginForm").hidden = kind !== "login";
-  $("deniedBox").hidden = kind !== "denied";
   $("mustBox").hidden = kind !== "must";
   $("checkBox").hidden = kind !== "check";
 }
@@ -408,7 +400,7 @@ async function ensureAdmin() {
   try {
     const me = await api("/api/auth/me");
     if (!me.user) { showAuth("login"); return; }
-    if (me.user.role !== "admin") { showAuth("denied"); return; }
+    if (me.user.role !== "admin") { window.location.replace("/"); return; }
     if (me.user.must_change) { showAuth("must"); return; }
     enterConsole(me.user);
   } catch (err) {
@@ -481,7 +473,7 @@ async function loadUsers() {
         (u.must_change ? '<span class="flag-chip warnc" title="При следующем входе потребуется смена пароля">сменить пароль</span>' : "") +
         (u.disabled ? '<span class="flag-chip off">заблокирован</span>' : "");
       const actions =
-        '<button class="tiny-btn" data-a="reset" data-id="' + u.id + '">Сбросить пароль</button>' +
+        '<button class="tiny-btn" data-a="reset" data-id="' + u.id + '" data-role="' + u.role + '">Сбросить пароль</button>' +
         '<button class="tiny-btn" data-a="toggle" data-id="' + u.id + '"' + (isMe ? " disabled" : "") + '>' + (u.disabled ? "Разблокировать" : "Заблокировать") + "</button>" +
         '<button class="tiny-btn danger-btn" data-a="del" data-id="' + u.id + '"' + (isMe ? " disabled" : "") + '>Удалить</button>';
       return '<div class="user-row"><span class="user-name">' + esc(u.username) +
@@ -514,10 +506,13 @@ $("usersList").addEventListener("click", async (e) => {
     return;
   }
   if (action === "reset") {
-    const pw = prompt("Новый пароль для пользователя (минимум 4 символа). При следующем входе будет запрошена смена пароля:");
+    const forAdmin = btn.dataset.role === "admin";
+    const pw = prompt(forAdmin
+      ? "Новый пароль для администратора (минимум 4 символа). При следующем входе будет запрошена смена пароля:"
+      : "Новый пароль для пользователя (минимум 4 символа). Менять его при входе не потребуется:");
     if (pw == null) return;
     if (pw.length < 4) { showMsg(msg, "Пароль слишком короткий.", "err"); return; }
-    try { await api("/api/users/" + id + "/reset-password", { password: pw, must_change: true }); showMsg(msg, "Пароль сброшен.", "ok"); }
+    try { await api("/api/users/" + id + "/reset-password", { password: pw, must_change: forAdmin }); showMsg(msg, "Пароль сброшен.", "ok"); }
     catch (err) { showMsg(msg, err.message, "err"); }
     loadUsers();
   }
@@ -528,12 +523,14 @@ $("uCreate").addEventListener("click", async () => {
   const name = $("uName").value.trim();
   const pass = $("uPass").value;
   if (!name || pass.length < 4) { showMsg(msg, "Укажите логин и пароль не короче 4 символов.", "err"); return; }
-  const mustChange = $("uMustChange").checked;
+  const role = $("uRole").value;
+  // Смена временного пароля обязательна только для администраторов.
+  const mustChange = role === "admin";
   try {
-    const created = await api("/api/users", { username: name, password: pass, role: $("uRole").value, must_change: mustChange });
+    const created = await api("/api/users", { username: name, password: pass, role: role, must_change: mustChange });
     $("uName").value = ""; $("uPass").value = "";
     showMsg(msg, "Учётная запись «" + created.username + "» создана. " +
-      (mustChange ? "При первом входе потребуется смена пароля." : "Пароль менять не потребуется — можно работать сразу."), "ok");
+      (mustChange ? "При первом входе администратор сменит временный пароль." : "Можно работать сразу с выданным паролем."), "ok");
     loadUsers();
   } catch (err) { showMsg(msg, err.message, "err"); }
 });
