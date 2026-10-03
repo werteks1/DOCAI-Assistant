@@ -35,6 +35,9 @@ TOKEN_BYTES = 32
 
 # Защита от перебора: >= 5 неудач подряд в этом окне блокируют вход.
 _MAX_FAILED = 5
+# Порог по IP-адресу (машине): выше пер-юзерного, т.к. за одним IP может быть
+# несколько учителей на общем ПК, но ловит перебор с ротацией логинов.
+_MAX_FAILED_IP = 15
 _LOCK_WINDOW_S = 15 * 60
 
 # Схема создаётся идемпотентно при старте.
@@ -112,6 +115,12 @@ def _verify_password(password: str, salt_hex: str, hash_hex: str) -> bool:
         "sha256", password.encode("utf-8"), bytes.fromhex(salt_hex), PBKDF2_ITERATIONS
     )
     return hmac.compare_digest(digest.hex(), hash_hex)
+
+
+def _hash_token(token: str) -> str:
+    """SHA-256 токена сессии. В БД хранится только хэш: утечка docia.db не даёт
+    рабочих токенов. Клиенту возвращается исходный непрозрачный токен."""
+    return hashlib.sha256((token or "").encode("utf-8")).hexdigest()
 
 
 def _row_to_user(row: sqlite3.Row) -> Dict[str, Any]:
@@ -348,6 +357,7 @@ def delete_user(user_id: int) -> None:
 # --- Вход (с защитой от перебора) -------------------------------------
 
 _failures: Dict[str, List[float]] = {}
+_ip_failures: Dict[str, List[float]] = {}
 _failures_lock = threading.Lock()
 
 
@@ -378,27 +388,72 @@ def _record_failure(username: str) -> None:
         _failures[username] = attempts
 
 
-def verify_login(username: str, password: str) -> AuthResult:
-    """Проверяет логин/пароль. Возвращает user или причину отказа."""
+def _norm_ip(ip: Optional[str]) -> Optional[str]:
+    ip = (ip or "").strip()
+    return ip or None
+
+
+def _clear_ip_failures(ip: Optional[str]) -> None:
+    ip = _norm_ip(ip)
+    if not ip:
+        return
+    with _failures_lock:
+        _ip_failures.pop(ip, None)
+
+
+def _prune_ip_failures(ip: str) -> int:
+    now = time.monotonic()
+    with _failures_lock:
+        attempts = [t for t in _ip_failures.get(ip, []) if now - t < _LOCK_WINDOW_S]
+        _ip_failures[ip] = attempts
+        return len(attempts)
+
+
+def _record_ip_failure(ip: Optional[str]) -> None:
+    ip = _norm_ip(ip)
+    if not ip:
+        return
+    with _failures_lock:
+        now = time.monotonic()
+        attempts = [t for t in _ip_failures.get(ip, []) if now - t < _LOCK_WINDOW_S]
+        attempts.append(now)
+        _ip_failures[ip] = attempts
+
+
+def verify_login(username: str, password: str, ip: Optional[str] = None) -> AuthResult:
+    """Проверяет логин/пароль. Возвращает user или причину отказа.
+
+    Блокировка перебора считается двумя счётчиками: по логину (`_MAX_FAILED`) и
+    по IP клиента (`_MAX_FAILED_IP`) — второй ловит ротацию логинов с одной машины.
+    `ip` берётся из реального адреса сокета (см. вызов в api.py); за реверс-прокси
+    его нужно пробрасывать доверенно, иначе счётчик по IP бесполезен.
+    """
     username = (username or "").strip()
     if not username:
         return AuthResult(locked=False)
+    ip_key = _norm_ip(ip)
     if _prune_failures(username) >= _MAX_FAILED:
+        return AuthResult(locked=True)
+    if ip_key and _prune_ip_failures(ip_key) >= _MAX_FAILED_IP:
         return AuthResult(locked=True)
     conn = _connect()
     try:
         row = _find_user_row(conn, username)
         if row is None:
             _record_failure(username)
+            _record_ip_failure(ip_key)
             return AuthResult(locked=False)
         if not _verify_password(password or "", row["password_salt"], row["password_hash"]):
             _record_failure(username)
+            _record_ip_failure(ip_key)
             return AuthResult(locked=False)
         user = _row_to_user(row)
         if user["disabled"]:
-            _record_failure(username)
+            # Пароль верен, учётка просто отключена админом — это не неудачная
+            # попытка перебора, поэтому счётчики блокировки не трогаем.
             return AuthResult(locked=False)
         _clear_failures(username)
+        _clear_ip_failures(ip_key)
         conn.execute(
             "UPDATE users SET last_login_at = ? WHERE id = ?",
             (_iso(_now()), user["id"]),
@@ -412,7 +467,9 @@ def verify_login(username: str, password: str) -> AuthResult:
 # --- Сессии -----------------------------------------------------------
 
 def create_session(user_id: int) -> str:
+    # Клиенту уходит исходный token, в БД кладём только его SHA-256.
     token = secrets.token_urlsafe(TOKEN_BYTES)
+    token_hash = _hash_token(token)
     now = _now()
     expires = now + timedelta(hours=config.SESSION_TTL_HOURS)
     conn = _connect()
@@ -420,7 +477,7 @@ def create_session(user_id: int) -> str:
         conn.execute(
             "INSERT INTO sessions (token, user_id, created_at, expires_at)"
             " VALUES (?, ?, ?, ?)",
-            (token, user_id, _iso(now), _iso(expires)),
+            (token_hash, user_id, _iso(now), _iso(expires)),
         )
         conn.commit()
         return token
@@ -432,13 +489,14 @@ def get_user_by_token(token: str) -> Optional[Dict[str, Any]]:
     """Возвращает пользователя по токену; скользящее продление TTL."""
     if not token:
         return None
+    token_hash = _hash_token(token)
     now = _now()
     conn = _connect()
     try:
         row = conn.execute(
             "SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id"
             " WHERE s.token = ? AND s.expires_at > ?",
-            (token, _iso(now)),
+            (token_hash, _iso(now)),
         ).fetchone()
         if row is None:
             return None
@@ -446,7 +504,7 @@ def get_user_by_token(token: str) -> Optional[Dict[str, Any]]:
             return None
         expires = now + timedelta(hours=config.SESSION_TTL_HOURS)
         conn.execute(
-            "UPDATE sessions SET expires_at = ? WHERE token = ?", (_iso(expires), token)
+            "UPDATE sessions SET expires_at = ? WHERE token = ?", (_iso(expires), token_hash)
         )
         conn.commit()
         return _row_to_user(row)
@@ -459,7 +517,7 @@ def delete_session(token: str) -> None:
         return
     conn = _connect()
     try:
-        conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        conn.execute("DELETE FROM sessions WHERE token = ?", (_hash_token(token),))
         conn.commit()
     finally:
         conn.close()

@@ -25,6 +25,10 @@ DOCIA_DB = Path(os.getenv("DOCIA_DB", str(BASE_DIR / "docia.db")))
 SESSION_TTL_HOURS = int(os.getenv("DOCIA_SESSION_TTL_HOURS", "24"))
 MAX_PDF_PAGES = 20
 MAX_IMAGE_PIXELS = 25_000_000
+# Верхняя граница на base64-строку одного изображения/PDF в запросе. Ограничивает
+# память до декодирования (защита от раздувания тела запроса). ~80 МБ base64 ≈
+# 60 МБ бинарных данных — с запасом на 20-страничный скан-PDF.
+MAX_IMAGE_BASE64_LEN = 80 * 1024 * 1024
 
 DEFAULT_EXCEL_COLUMNS = [
     "№ п/п",

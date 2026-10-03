@@ -39,7 +39,7 @@ h2 { font-size: 21px; }
 .controls select:focus, .field input:focus { border-color: #6d98ff; box-shadow: 0 0 0 3px rgba(91, 133, 255, .13); }
 .workspace { display: grid; grid-template-columns: minmax(320px, .92fr) minmax(480px, 1.08fr); gap: 20px; align-items: stretch; }
 .preview, .panel, .suggestions { border-radius: 20px; }
-.preview { min-height: 650px; padding: 18px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.preview { min-height: 650px; padding: 14px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
 .upload, .batch-upload { width: 100%; border: 1px dashed #465b7d; border-radius: 13px; padding: 18px; text-align: center; cursor: pointer; color: #bdc9dc; background: rgba(12, 18, 29, .55); }
 .upload:hover, .batch-upload:hover { border-color: #6b92ef; background: rgba(49, 74, 128, .18); }
 .upload input, .batch-upload input { display: none; }
@@ -52,8 +52,10 @@ h2 { font-size: 21px; }
 .zoom-toolbar span { min-width: 43px; color: #d6e2f7; font-size: 11px; font-weight: 800; text-align: center; }
 .zoom-range { flex: 1; min-width: 80px; accent-color: #6d98ff; cursor: pointer; }
 .zoom-reset { min-width: auto !important; color: #9eb4d9 !important; background: transparent !important; font-size: 10px; }
-.image-viewport { display: flex; flex: 1; align-items: flex-start; justify-content: center; width: 100%; min-height: 0; overflow: auto; padding: 8px; border: 1px solid #263650; border-radius: 12px; background: rgba(8, 13, 22, .72); }
-.preview .document-image { width: min(100%, 740px); max-width: none; max-height: none; height: auto; flex: 0 0 auto; transform-origin: top center; transition: transform .2s ease; }
+.image-viewport { display: block; flex: 1 1 0; width: 100%; min-height: 420px; overflow: auto; padding: 8px; border: 1px solid #263650; border-radius: 12px; background: rgba(8, 13, 22, .72); overscroll-behavior: contain; }
+.image-viewport.pannable { cursor: grab; }
+.image-viewport.pannable:active { cursor: grabbing; }
+.preview .document-image { display: block; width: 100%; max-width: none; max-height: none; height: auto; margin: 0 auto; transition: width .2s ease; user-select: none; -webkit-user-drag: none; }
 .pdf-preview { width: 82%; padding: 110px 30px; text-align: center; color: #c4d1e8; border: 1px solid #344968; border-radius: 12px; background: linear-gradient(145deg, rgba(60, 89, 146, .18), rgba(20, 28, 42, .2)); }
 .pdf-preview small { color: #7e90ad; }
 .panel { padding: 24px; }

@@ -66,8 +66,14 @@ class exclusive_extraction:
 
 
 def friendly_error(exc: Exception) -> str:
-    """Преобразует ошибку в понятное для Web UI сообщение (без персональных данных)."""
-    raw = str(exc) or "Неизвестная ошибка компилятора"
+    """Преобразует ошибку в понятное для Web UI сообщение (без персональных данных).
+
+    Намеренные ошибки приложения (ValueError валидации, RuntimeError бэкенда,
+    RecognitionError) несут осмысленный текст для пользователя и отдаются как есть.
+    Неожиданные типы (KeyError, AttributeError, ошибки библиотек и т.п.) могут
+    содержать внутренние детали — их наружу не показываем, а тип пишем в журнал.
+    """
+    raw = str(exc) or ""
     lower = raw.lower()
     if "61" in raw or "connection refused" in lower or "connecterror" in lower:
         return (
@@ -75,7 +81,11 @@ def friendly_error(exc: Exception) -> str:
             "Проверьте, что Ollama/LM Studio запущен, IP и порт указаны верно, "
             "а доступ к серверу разрешён в локальной сети."
         )
-    return raw
+    if isinstance(exc, (ValueError, RuntimeError)):
+        return raw or "Неизвестная ошибка компилятора"
+    # PII-safe: логируем только тип, без текста (может нести имя файла/значение поля).
+    logger.warning("клиенту отдана generic-ошибка, тип=%s", type(exc).__name__)
+    return "Внутренняя ошибка компилятора. Подробности — в журнале сервера."
 
 
 @dataclass

@@ -6,7 +6,7 @@ import config
 class ExtractRequest(BaseModel):
     request_id: Optional[str] = Field(default=None, min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")
     filename: str = "document.png"
-    image_base64: str = Field(min_length=16)
+    image_base64: str = Field(min_length=16, max_length=config.MAX_IMAGE_BASE64_LEN)
     target_columns: Optional[list[str]] = None
     ocr_priority: Literal["auto", "paddle", "vlm"] = "auto"
     detector: Literal["PP-OCRv6_medium_det", "PP-OCRv6_small_det"] = config.PADDLE_DETECTOR
@@ -16,7 +16,7 @@ class ExtractRequest(BaseModel):
 
 
 class PreviewRequest(BaseModel):
-    image_base64: str = Field(min_length=16)
+    image_base64: str = Field(min_length=16, max_length=config.MAX_IMAGE_BASE64_LEN)
     page: int = Field(default=0, ge=0, le=config.MAX_PDF_PAGES - 1)
 
 
@@ -28,7 +28,7 @@ class DuplicatesRequest(BaseModel):
 
 class BatchDocument(BaseModel):
     filename: str = "document.png"
-    image_base64: str = Field(min_length=16)
+    image_base64: str = Field(min_length=16, max_length=config.MAX_IMAGE_BASE64_LEN)
 
 
 class BatchExtractRequest(BaseModel):

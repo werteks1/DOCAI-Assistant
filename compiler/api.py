@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -48,8 +48,25 @@ app.add_middleware(
     allow_origins=_allowed_origins,
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
-    allow_credentials=True,
+    # Авторизация — Bearer-токен в заголовке, не куки, поэтому credentials не нужны.
+    # Отключение убирает footgun с рефлексией origin из DOCIA_ALLOWED_ORIGINS.
+    allow_credentials=False,
 )
+
+
+@app.middleware("http")
+async def _security_headers(request, call_next):
+    """Базовые защитные заголовки. `frame-ancestors 'none'` + X-Frame-Options
+    закрывают кликджекинг админ-консоли; nosniff и Referrer-Policy — дешёвые
+    дополнения. CSP намеренно ограничена фреймингом, чтобы не ломать инлайн-скрипты
+    админ-страницы и собранного фронтенда."""
+    response = await call_next(request)
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "same-origin")
+    response.headers.setdefault("Content-Security-Policy", "frame-ancestors 'none'")
+    return response
+
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -68,7 +85,12 @@ if _active_connection and _active_connection.get("api_key"):
     pipeline.extractor.set_api_key(_active_connection["api_key"])
     # Опрос моделей после применения ключа: облачные OpenAI-совместимые API
     # (SiliconFlow, SeekAI и др.) без него отдают 401 и пустой список.
-    pipeline.available_models = pipeline.extractor.get_available_models()
+    try:
+        pipeline.available_models = pipeline.extractor.get_available_models()
+    except Exception:
+        # Недоступный на старте бэкенд не должен ронять импорт приложения:
+        # список моделей опросится позже при /api/connect или /api/health.
+        pipeline.available_models = []
     if (pipeline.available_models
             and pipeline.extractor.model_name not in pipeline.available_models):
         preferred = next(
@@ -203,6 +225,13 @@ def _settings_response(saved: dict, warning: str = "") -> dict[str, object]:
         },
         "active": _active_state(),
     }
+
+
+@app.get("/health", include_in_schema=False)
+def liveness() -> dict:
+    # Лёгкий liveness-проверяльщик для внешних зондов (IDE, мониторинг и т.п.):
+    # отвечает 200 вместо 404 и не трогает состояние pipeline.
+    return {"status": "ok"}
 
 
 @app.get("/api/health", response_model=HealthResponse)
@@ -418,6 +447,8 @@ def update_connection(
         return _settings_response(saved, warning)
     except JobBusy as exc:
         raise _http_409_job_busy(exc) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
         _log_action(admin["username"], "connection_update", ok=False)
         raise HTTPException(status_code=422, detail=friendly_error(exc)) from exc
@@ -452,6 +483,8 @@ def activate_connection(connection_id: str, admin: dict = Depends(require_admin)
         return _settings_response(saved)
     except JobBusy as exc:
         raise _http_409_job_busy(exc) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
         _log_action(admin["username"], "connection_activate", ok=False)
         raise HTTPException(status_code=422, detail=friendly_error(exc)) from exc
@@ -494,6 +527,8 @@ def delete_connection(connection_id: str, admin: dict = Depends(require_admin)) 
         return _settings_response(saved, warning)
     except JobBusy as exc:
         raise _http_409_job_busy(exc) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
         _log_action(admin["username"], "connection_delete", ok=False)
         raise HTTPException(status_code=422, detail=friendly_error(exc)) from exc
@@ -518,7 +553,7 @@ def choose_model(request: ModelRequest, admin: dict = Depends(require_admin)) ->
         raise _http_409_job_busy(exc) from exc
     except Exception as exc:
         _log_action(admin["username"], "model", ok=False)
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=friendly_error(exc)) from exc
 
 
 # --- Настройки модели/сервера (отдельное приложение /settings) ----------
@@ -637,8 +672,11 @@ def _auth_user(user: dict) -> AuthUser:
 
 
 @app.post("/api/auth/login", response_model=LoginResponse)
-def auth_login(request: LoginRequest) -> LoginResponse:
-    result = auth_store.verify_login(request.username, request.password)
+def auth_login(request: LoginRequest, http_request: Request) -> LoginResponse:
+    # Реальный адрес сокета (не X-Forwarded-*, который клиент мог бы подделать
+    # при прямом биндинге в LAN) — для блокировки перебора по IP.
+    client_ip = http_request.client.host if http_request.client else None
+    result = auth_store.verify_login(request.username, request.password, ip=client_ip)
     if result.locked:
         _log_action(request.username, "login", ok=False)
         raise HTTPException(
@@ -923,7 +961,7 @@ def export_excel(request: ExportRequest, user: dict = Depends(enforce_change)) -
         content = ExcelManager.export_records_bytes(request.records)
     except Exception as exc:
         _log_action(user["username"], "export_excel", ok=False)
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=friendly_error(exc)) from exc
     _log_action(user["username"], "export_excel", ok=True,
                 detail={"records": len(request.records)})
     return Response(
@@ -937,9 +975,15 @@ def export_excel(request: ExportRequest, user: dict = Depends(enforce_change)) -
 def add_correction(
     request: CorrectionRequest, user: dict = Depends(enforce_change)
 ) -> dict[str, str]:
-    pipeline.extractor.reference_dictionary.add_correction(
-        request.category, request.wrong, request.right
-    )
+    # Справочник живёт внутри общего (не потокобезопасного) экстрактора, который
+    # фоновый пакетный джоб может читать в этот момент — мутируем под тем же локом.
+    try:
+        with exclusive_extraction():
+            pipeline.extractor.reference_dictionary.add_correction(
+                request.category, request.wrong, request.right
+            )
+    except JobBusy as exc:
+        raise _http_409_job_busy(exc) from exc
     _log_action(user["username"], "correction", ok=True,
                 detail={"category": request.category})
     return {"status": "saved"}
