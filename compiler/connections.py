@@ -56,6 +56,8 @@ def normalize_connection(item: Dict[str, Any], fallback_id: str = "") -> Optiona
     host = _clean_text(item.get("host"), 255)
     if not host:
         return None
+    if "://" in host and host.split("://", 1)[0].lower() not in ("http", "https"):
+        return None  # допустимы только http/https
     name = _clean_text(item.get("name"), MAX_NAME_LENGTH) or guess_name(host)
     return {
         "id": _clean_text(item.get("id"), 64) or fallback_id,

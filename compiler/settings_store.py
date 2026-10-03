@@ -47,6 +47,11 @@ def save_settings(data: Dict[str, Any], drop: tuple = ()) -> Dict[str, Any]:
         json.dumps(merged, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    try:
+        # В файле лежат API-ключи: доступ только владельцу.
+        os.chmod(tmp, 0o600)
+    except OSError:
+        pass
     os.replace(tmp, SETTINGS_FILE)
     return merged
 

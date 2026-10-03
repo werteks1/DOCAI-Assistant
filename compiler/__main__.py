@@ -14,6 +14,13 @@ class _HealthAccessFilter(logging.Filter):
 
 if __name__ == "__main__":
     logging.getLogger("uvicorn.access").addFilter(_HealthAccessFilter())
+    if config.BIND_HOST not in ("127.0.0.1", "localhost", "::1"):
+        logging.getLogger("uvicorn.error").warning(
+            "Сервер слушает %s по HTTP без шифрования: пароли и сканы идут "
+            "открытым текстом. Используйте только в доверенной сети или за "
+            "HTTPS-прокси; для локальной работы задайте DOCIA_BIND_HOST=127.0.0.1.",
+            config.BIND_HOST,
+        )
     # LAN-режим: BIND_HOST по умолчанию 0.0.0.0 — компилятор отдаёт и API,
     # и собранный фронтенд (web/dist) всем ПК школьной сети на :8000.
     # Для локальной разработки: DOCIA_BIND_HOST=127.0.0.1 python -m compiler.

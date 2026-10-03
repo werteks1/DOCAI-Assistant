@@ -8,7 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent
 TEST_SAMPLES_DIR = BASE_DIR / "test_samples"
 TEST_SAMPLES_DIR.mkdir(exist_ok=True)
 
-OLLAMA_HOST = os.getenv("DOCIA_OLLAMA_HOST", "http://192.168.0.19:1234")
+OLLAMA_HOST = os.getenv("DOCIA_OLLAMA_HOST", "http://127.0.0.1:11434")
 DEFAULT_MODEL = os.getenv("DOCIA_MODEL", "qwen2.5-vl:7b")
 SILICONFLOW_HOST = "https://api.siliconflow.com"
 
